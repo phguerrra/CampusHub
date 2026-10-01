@@ -25,6 +25,7 @@ public class EventsActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_events);
 
+        findViewById(R.id.profile_button).setOnClickListener(view -> openProfile());
         findViewById(R.id.logout_button).setOnClickListener(view -> signOut());
         RecyclerView eventsList = findViewById(R.id.events_list);
         emptyMessage = findViewById(R.id.events_empty_message);
@@ -60,6 +61,10 @@ public class EventsActivity extends AppCompatActivity {
             auth.signOut();
         }
         openLogin();
+    }
+
+    private void openProfile() {
+        startActivity(new Intent(this, ProfileActivity.class));
     }
 
     private void openLogin() {
