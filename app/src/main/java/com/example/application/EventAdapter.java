@@ -15,7 +15,16 @@ import java.util.List;
 import java.util.Locale;
 
 public class EventAdapter extends RecyclerView.Adapter<EventAdapter.EventViewHolder> {
+    public interface OnEventClickListener {
+        void onEventClick(Event event);
+    }
+
     private final List<Event> events = new ArrayList<>();
+    private final OnEventClickListener clickListener;
+
+    public EventAdapter(OnEventClickListener clickListener) {
+        this.clickListener = clickListener;
+    }
 
     public void setEvents(List<Event> updatedEvents) {
         events.clear();
@@ -33,7 +42,9 @@ public class EventAdapter extends RecyclerView.Adapter<EventAdapter.EventViewHol
 
     @Override
     public void onBindViewHolder(@NonNull EventViewHolder holder, int position) {
-        holder.bind(events.get(position));
+        Event event = events.get(position);
+        holder.bind(event);
+        holder.itemView.setOnClickListener(view -> clickListener.onEventClick(event));
     }
 
     @Override

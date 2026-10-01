@@ -21,6 +21,8 @@ import java.util.Collections;
 import java.util.List;
 
 public class EventsActivity extends AppCompatActivity {
+    public static final String EXTRA_EVENT_ID = "com.example.application.EVENT_ID";
+
     private EventAdapter eventAdapter;
     private TextView emptyMessage;
     private ProgressBar eventsProgress;
@@ -32,12 +34,13 @@ public class EventsActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_events);
 
+        findViewById(R.id.create_event_button).setOnClickListener(view -> openCreateEvent());
         findViewById(R.id.profile_button).setOnClickListener(view -> openProfile());
         findViewById(R.id.logout_button).setOnClickListener(view -> signOut());
         RecyclerView eventsList = findViewById(R.id.events_list);
         emptyMessage = findViewById(R.id.events_empty_message);
         eventsProgress = findViewById(R.id.events_progress);
-        eventAdapter = new EventAdapter();
+        eventAdapter = new EventAdapter(this::openEventDetails);
 
         eventsList.setLayoutManager(new LinearLayoutManager(this));
         eventsList.setAdapter(eventAdapter);
@@ -109,6 +112,20 @@ public class EventsActivity extends AppCompatActivity {
 
     private void openProfile() {
         startActivity(new Intent(this, ProfileActivity.class));
+    }
+
+    private void openCreateEvent() {
+        startActivity(new Intent(this, CreateEventActivity.class));
+    }
+
+    private void openEventDetails(Event event) {
+        if (event.getId() == null || event.getId().trim().isEmpty()) {
+            Toast.makeText(this, R.string.event_details_invalid_id, Toast.LENGTH_SHORT).show();
+            return;
+        }
+        Intent intent = new Intent(this, EventDetailsActivity.class);
+        intent.putExtra(EXTRA_EVENT_ID, event.getId());
+        startActivity(intent);
     }
 
     private void openLogin() {
