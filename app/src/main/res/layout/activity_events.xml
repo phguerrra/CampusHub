@@ -84,5 +84,12 @@
             android:textColor="@color/text_secondary"
             android:drawablePadding="16dp"
             app:drawableTopCompat="@drawable/ic_event_empty" />
+
+        <ProgressBar
+            android:id="@+id/events_progress"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:layout_gravity="center"
+            android:visibility="gone" />
     </FrameLayout>
 </LinearLayout>

@@ -58,5 +58,15 @@
             android:textAppearance="@style/TextAppearance.MaterialComponents.Body2"
             android:textColor="@color/text_primary"
             tools:text="Um encontro para conhecer novidades e trocar experiências." />
+
+        <TextView
+            android:id="@+id/event_available_slots"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            android:textAppearance="@style/TextAppearance.MaterialComponents.Body2"
+            android:textColor="@color/brand_primary"
+            android:textStyle="bold"
+            tools:text="100 vagas disponíveis" />
     </LinearLayout>
 </com.google.android.material.card.MaterialCardView>

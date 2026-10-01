@@ -19,6 +19,12 @@
     <string name="events_subtitle">Encontre e acompanhe os próximos eventos.</string>
     <string name="events_empty">Nenhum evento disponível no momento.</string>
     <string name="event_date_time">%1$s às %2$s</string>
+    <string name="event_date_unavailable">Data indisponível</string>
+    <string name="events_load_error">Não foi possível carregar os eventos.</string>
+    <plurals name="event_available_slots">
+        <item quantity="one">%d vaga disponível</item>
+        <item quantity="other">%d vagas disponíveis</item>
+    </plurals>
     <string name="profile">Perfil</string>
     <string name="profile_title">Meu perfil</string>
     <string name="profile_subtitle">Confira seus dados e mantenha seu nome atualizado.</string>
