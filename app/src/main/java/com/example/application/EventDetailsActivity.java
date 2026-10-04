@@ -2,6 +2,7 @@ package com.example.application;
 
 import android.content.Intent;
 import android.os.Bundle;
+import android.util.Log;
 import android.view.View;
 import android.widget.ProgressBar;
 import android.widget.TextView;
@@ -14,7 +15,6 @@ import com.google.firebase.FirebaseApp;
 import com.google.firebase.Timestamp;
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.firestore.DocumentReference;
-import com.google.firebase.firestore.DocumentSnapshot;
 import com.google.firebase.firestore.FieldValue;
 import com.google.firebase.firestore.FirebaseFirestore;
 import com.google.firebase.firestore.FirebaseFirestoreException;
@@ -26,6 +26,8 @@ import java.util.Locale;
 import java.util.Map;
 
 public class EventDetailsActivity extends AppCompatActivity {
+    private static final String TAG = "EventDetailsActivity";
+
     private TextView nameText;
     private TextView dateTimeText;
     private TextView locationText;
@@ -114,8 +116,10 @@ public class EventDetailsActivity extends AppCompatActivity {
                     showEvent(event);
                     checkSubscriptionStatus();
                 })
-                .addOnFailureListener(exception ->
-                        showError(getString(R.string.event_details_load_error), true));
+                .addOnFailureListener(exception -> {
+                    Log.e(TAG, "Erro ao carregar detalhes do evento", exception);
+                    showError(getString(R.string.event_details_load_error), true);
+                });
     }
 
     private void checkSubscriptionStatus() {
@@ -133,6 +137,7 @@ public class EventDetailsActivity extends AppCompatActivity {
                     updateSubscribeButtonUI();
                 })
                 .addOnFailureListener(exception -> {
+                    Log.e(TAG, "Erro ao checar status de inscrição", exception);
                     isSubscribed = false;
                     updateSubscribeButtonUI();
                 });
@@ -167,6 +172,11 @@ public class EventDetailsActivity extends AppCompatActivity {
             return;
         }
 
+        if (currentEvent != null && currentEvent.getAvailableSlots() <= 0) {
+            Toast.makeText(this, R.string.no_slots_left, Toast.LENGTH_SHORT).show();
+            return;
+        }
+
         String userId = auth.getCurrentUser().getUid();
         String subscriptionDocId = eventId + "_" + userId;
 
@@ -174,58 +184,31 @@ public class EventDetailsActivity extends AppCompatActivity {
 
         DocumentReference eventRef = database.collection("events").document(eventId);
         DocumentReference subRef = database.collection("subscriptions").document(subscriptionDocId);
-        DocumentReference eventSubRef = eventRef.collection("subscriptions").document(userId);
 
-        database.runTransaction(transaction -> {
-            DocumentSnapshot eventSnap = transaction.get(eventRef);
-            if (!eventSnap.exists()) {
-                throw new FirebaseFirestoreException(
-                        "Evento não encontrado",
-                        FirebaseFirestoreException.Code.NOT_FOUND
-                );
-            }
-            Long slots = eventSnap.getLong("availableSlots");
-            if (slots == null || slots <= 0) {
-                throw new FirebaseFirestoreException(
-                        "Sem vagas disponíveis",
-                        FirebaseFirestoreException.Code.ABORTED
-                );
-            }
-            DocumentSnapshot subSnap = transaction.get(subRef);
-            if (subSnap.exists()) {
-                throw new FirebaseFirestoreException(
-                        "Já inscrito",
-                        FirebaseFirestoreException.Code.ALREADY_EXISTS
-                );
-            }
+        Map<String, Object> subData = new HashMap<>();
+        subData.put("eventId", eventId);
+        subData.put("userId", userId);
+        subData.put("subscribedAt", FieldValue.serverTimestamp());
 
-            transaction.update(eventRef, "availableSlots", slots - 1);
-
-            Map<String, Object> subData = new HashMap<>();
-            subData.put("eventId", eventId);
-            subData.put("userId", userId);
-            subData.put("subscribedAt", FieldValue.serverTimestamp());
-
-            transaction.set(subRef, subData);
-            transaction.set(eventSubRef, subData);
-
-            return null;
-        }).addOnSuccessListener(aVoid -> {
-            Toast.makeText(this, R.string.subscribe_success, Toast.LENGTH_SHORT).show();
-            loadEvent();
-        }).addOnFailureListener(exception -> {
-            setSubscribeLoading(false);
-            String errorMsg = getString(R.string.subscribe_error);
-            if (exception instanceof FirebaseFirestoreException) {
-                FirebaseFirestoreException firestoreException = (FirebaseFirestoreException) exception;
-                if (firestoreException.getCode() == FirebaseFirestoreException.Code.ABORTED) {
-                    errorMsg = getString(R.string.no_slots_left);
-                } else if (firestoreException.getCode() == FirebaseFirestoreException.Code.ALREADY_EXISTS) {
-                    errorMsg = getString(R.string.already_subscribed);
-                }
-            }
-            Toast.makeText(this, errorMsg, Toast.LENGTH_LONG).show();
-        });
+        subRef.set(subData)
+                .addOnSuccessListener(aVoid -> {
+                    eventRef.update("availableSlots", FieldValue.increment(-1))
+                            .addOnSuccessListener(aVoid2 -> {
+                                Toast.makeText(this, R.string.subscribe_success, Toast.LENGTH_SHORT).show();
+                                loadEvent();
+                            })
+                            .addOnFailureListener(exception -> {
+                                Log.e(TAG, "Erro ao decrementar vagas", exception);
+                                Toast.makeText(this, R.string.subscribe_success, Toast.LENGTH_SHORT).show();
+                                loadEvent();
+                            });
+                })
+                .addOnFailureListener(exception -> {
+                    setSubscribeLoading(false);
+                    Log.e(TAG, "Erro ao realizar inscrição no Firestore", exception);
+                    String errorMsg = handleSubscribeError(exception);
+                    Toast.makeText(this, errorMsg, Toast.LENGTH_LONG).show();
+                });
     }
 
     private void unsubscribeFromEvent() {
@@ -241,39 +224,51 @@ public class EventDetailsActivity extends AppCompatActivity {
 
         DocumentReference eventRef = database.collection("events").document(eventId);
         DocumentReference subRef = database.collection("subscriptions").document(subscriptionDocId);
-        DocumentReference eventSubRef = eventRef.collection("subscriptions").document(userId);
 
-        database.runTransaction(transaction -> {
-            DocumentSnapshot eventSnap = transaction.get(eventRef);
-            if (!eventSnap.exists()) {
-                throw new FirebaseFirestoreException(
-                        "Evento não encontrado",
-                        FirebaseFirestoreException.Code.NOT_FOUND
-                );
+        subRef.delete()
+                .addOnSuccessListener(aVoid -> {
+                    eventRef.update("availableSlots", FieldValue.increment(1))
+                            .addOnSuccessListener(aVoid2 -> {
+                                Toast.makeText(this, R.string.unsubscribe_success, Toast.LENGTH_SHORT).show();
+                                loadEvent();
+                            })
+                            .addOnFailureListener(exception -> {
+                                Log.e(TAG, "Erro ao incrementar vagas", exception);
+                                Toast.makeText(this, R.string.unsubscribe_success, Toast.LENGTH_SHORT).show();
+                                loadEvent();
+                            });
+                })
+                .addOnFailureListener(exception -> {
+                    setSubscribeLoading(false);
+                    Log.e(TAG, "Erro ao cancelar inscrição no Firestore", exception);
+                    String errorMsg = handleSubscribeError(exception);
+                    Toast.makeText(this, errorMsg, Toast.LENGTH_LONG).show();
+                });
+    }
+
+    private String handleSubscribeError(Exception exception) {
+        if (exception instanceof FirebaseFirestoreException) {
+            FirebaseFirestoreException firestoreException = (FirebaseFirestoreException) exception;
+            switch (firestoreException.getCode()) {
+                case NOT_FOUND:
+                    return getString(R.string.event_details_not_found);
+                case ABORTED:
+                    return getString(R.string.no_slots_left);
+                case ALREADY_EXISTS:
+                    return getString(R.string.already_subscribed);
+                case PERMISSION_DENIED:
+                case UNAUTHENTICATED:
+                    return getString(R.string.firestore_permission_denied);
+                case UNAVAILABLE:
+                    return getString(R.string.firestore_unavailable);
+                default:
+                    return getString(R.string.firestore_error_with_code, firestoreException.getCode().name());
             }
-            DocumentSnapshot subSnap = transaction.get(subRef);
-            if (!subSnap.exists()) {
-                throw new FirebaseFirestoreException(
-                        "Inscrição não encontrada",
-                        FirebaseFirestoreException.Code.NOT_FOUND
-                );
-            }
-
-            Long slots = eventSnap.getLong("availableSlots");
-            long newSlots = (slots == null) ? 1 : slots + 1;
-
-            transaction.update(eventRef, "availableSlots", newSlots);
-            transaction.delete(subRef);
-            transaction.delete(eventSubRef);
-
-            return null;
-        }).addOnSuccessListener(aVoid -> {
-            Toast.makeText(this, R.string.unsubscribe_success, Toast.LENGTH_SHORT).show();
-            loadEvent();
-        }).addOnFailureListener(exception -> {
-            setSubscribeLoading(false);
-            Toast.makeText(this, R.string.unsubscribe_error, Toast.LENGTH_LONG).show();
-        });
+        }
+        String message = exception.getMessage();
+        return message != null && !message.trim().isEmpty()
+                ? message
+                : getString(R.string.subscribe_error);
     }
 
     private void setSubscribeLoading(boolean loading) {

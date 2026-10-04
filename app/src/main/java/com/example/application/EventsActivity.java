@@ -19,7 +19,10 @@ import com.google.firebase.FirebaseApp;
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.firestore.DocumentSnapshot;
 import com.google.firebase.firestore.FirebaseFirestore;
+import com.google.firebase.firestore.FirebaseFirestoreException;
 import com.google.firebase.firestore.QueryDocumentSnapshot;
+import com.google.firebase.firestore.QuerySnapshot;
+import com.google.firebase.firestore.Source;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -96,40 +99,50 @@ public class EventsActivity extends AppCompatActivity {
         emptyMessage.setText(R.string.events_empty);
         setLoading(true);
         database.collection("events")
-                .get()
+                .get(Source.SERVER)
                 .addOnSuccessListener(querySnapshot -> {
-                    List<Event> events = new ArrayList<>();
-                    for (DocumentSnapshot document : querySnapshot.getDocuments()) {
-                        try {
-                            Event event = document.toObject(Event.class);
-                            if (event != null) {
-                                event.setId(document.getId());
-                                events.add(event);
-                            }
-                        } catch (RuntimeException exception) {
-                            Log.e(TAG, "Documento de evento inválido: " + document.getId(), exception);
-                        }
-                    }
-                    events.sort(Comparator.comparing(
-                            Event::getDate,
-                            Comparator.nullsLast(Comparator.naturalOrder())
-                    ));
+                    List<Event> events = parseEventsSnapshot(querySnapshot);
                     setLoading(false);
                     showEvents(events);
                 })
                 .addOnFailureListener(exception -> {
-                    Log.e(TAG, "Falha ao carregar eventos do Firestore", exception);
-                    setLoading(false);
-                    showEvents(Collections.emptyList());
-                    String details = exception.getMessage();
-                    Toast.makeText(
-                            this,
-                            details == null
-                                    ? getString(R.string.events_load_error)
-                                    : getString(R.string.events_load_error_with_details, details),
-                            Toast.LENGTH_LONG
-                    ).show();
+                    Log.w(TAG, "Falha ao carregar do servidor, tentando cache local...", exception);
+                    database.collection("events")
+                            .get(Source.CACHE)
+                            .addOnSuccessListener(cacheSnapshot -> {
+                                List<Event> events = parseEventsSnapshot(cacheSnapshot);
+                                setLoading(false);
+                                showEvents(events);
+                                handleFirestoreError(exception);
+                            })
+                            .addOnFailureListener(cacheException -> {
+                                setLoading(false);
+                                showEvents(Collections.emptyList());
+                                handleFirestoreError(exception);
+                            });
                 });
+    }
+
+    private List<Event> parseEventsSnapshot(QuerySnapshot querySnapshot) {
+        List<Event> events = new ArrayList<>();
+        if (querySnapshot != null) {
+            for (DocumentSnapshot document : querySnapshot.getDocuments()) {
+                try {
+                    Event event = document.toObject(Event.class);
+                    if (event != null) {
+                        event.setId(document.getId());
+                        events.add(event);
+                    }
+                } catch (RuntimeException exception) {
+                    Log.e(TAG, "Documento de evento inválido: " + document.getId(), exception);
+                }
+            }
+            events.sort(Comparator.comparing(
+                    Event::getDate,
+                    Comparator.nullsLast(Comparator.naturalOrder())
+            ));
+        }
+        return events;
     }
 
     private void loadMyEvents() {
@@ -144,60 +157,96 @@ public class EventsActivity extends AppCompatActivity {
 
         database.collection("subscriptions")
                 .whereEqualTo("userId", userId)
-                .get()
-                .addOnSuccessListener(querySnapshot -> {
-                    if (querySnapshot.isEmpty()) {
-                        setLoading(false);
-                        showEvents(Collections.emptyList());
-                        return;
-                    }
-
-                    List<Task<DocumentSnapshot>> tasks = new ArrayList<>();
-                    for (QueryDocumentSnapshot subDoc : querySnapshot) {
-                        String eventId = subDoc.getString("eventId");
-                        if (eventId != null && !eventId.trim().isEmpty()) {
-                            tasks.add(database.collection("events").document(eventId).get());
-                        }
-                    }
-
-                    if (tasks.isEmpty()) {
-                        setLoading(false);
-                        showEvents(Collections.emptyList());
-                        return;
-                    }
-
-                    Tasks.whenAllComplete(tasks).addOnCompleteListener(allTasks -> {
-                        List<Event> myEvents = new ArrayList<>();
-                        for (Task<DocumentSnapshot> task : tasks) {
-                            if (task.isSuccessful() && task.getResult() != null) {
-                                DocumentSnapshot doc = task.getResult();
-                                if (doc.exists()) {
-                                    try {
-                                        Event event = doc.toObject(Event.class);
-                                        if (event != null) {
-                                            event.setId(doc.getId());
-                                            myEvents.add(event);
-                                        }
-                                    } catch (RuntimeException exception) {
-                                        Log.e(TAG, "Erro ao converter evento inscrito: " + doc.getId(), exception);
-                                    }
-                                }
-                            }
-                        }
-                        myEvents.sort(Comparator.comparing(
-                                Event::getDate,
-                                Comparator.nullsLast(Comparator.naturalOrder())
-                        ));
-                        setLoading(false);
-                        showEvents(myEvents);
-                    });
-                })
+                .get(Source.SERVER)
+                .addOnSuccessListener(this::processSubscriptions)
                 .addOnFailureListener(exception -> {
-                    Log.e(TAG, "Falha ao carregar minhas inscrições do Firestore", exception);
-                    setLoading(false);
-                    showEvents(Collections.emptyList());
-                    Toast.makeText(this, R.string.events_load_error, Toast.LENGTH_SHORT).show();
+                    Log.w(TAG, "Falha ao carregar minhas inscrições do servidor, tentando cache...", exception);
+                    database.collection("subscriptions")
+                            .whereEqualTo("userId", userId)
+                            .get(Source.CACHE)
+                            .addOnSuccessListener(this::processSubscriptions)
+                            .addOnFailureListener(cacheException -> {
+                                setLoading(false);
+                                showEvents(Collections.emptyList());
+                                handleFirestoreError(exception);
+                            });
                 });
+    }
+
+    private void processSubscriptions(QuerySnapshot querySnapshot) {
+        if (querySnapshot == null || querySnapshot.isEmpty()) {
+            setLoading(false);
+            showEvents(Collections.emptyList());
+            return;
+        }
+
+        List<Task<DocumentSnapshot>> tasks = new ArrayList<>();
+        for (QueryDocumentSnapshot subDoc : querySnapshot) {
+            String eventId = subDoc.getString("eventId");
+            if (eventId != null && !eventId.trim().isEmpty()) {
+                tasks.add(database.collection("events").document(eventId).get());
+            }
+        }
+
+        if (tasks.isEmpty()) {
+            setLoading(false);
+            showEvents(Collections.emptyList());
+            return;
+        }
+
+        Tasks.whenAllComplete(tasks).addOnCompleteListener(allTasks -> {
+            List<Event> myEvents = new ArrayList<>();
+            for (Task<DocumentSnapshot> task : tasks) {
+                if (task.isSuccessful() && task.getResult() != null) {
+                    DocumentSnapshot doc = task.getResult();
+                    if (doc.exists()) {
+                        try {
+                            Event event = doc.toObject(Event.class);
+                            if (event != null) {
+                                event.setId(doc.getId());
+                                myEvents.add(event);
+                            }
+                        } catch (RuntimeException exception) {
+                            Log.e(TAG, "Erro ao converter evento inscrito: " + doc.getId(), exception);
+                        }
+                    }
+                }
+            }
+            myEvents.sort(Comparator.comparing(
+                    Event::getDate,
+                    Comparator.nullsLast(Comparator.naturalOrder())
+            ));
+            setLoading(false);
+            showEvents(myEvents);
+        });
+    }
+
+    private void handleFirestoreError(Exception exception) {
+        String errorTextMsg;
+        if (exception instanceof FirebaseFirestoreException) {
+            FirebaseFirestoreException firestoreException = (FirebaseFirestoreException) exception;
+            switch (firestoreException.getCode()) {
+                case PERMISSION_DENIED:
+                case UNAUTHENTICATED:
+                    errorTextMsg = getString(R.string.firestore_permission_denied);
+                    break;
+                case UNAVAILABLE:
+                case DEADLINE_EXCEEDED:
+                    errorTextMsg = getString(R.string.firestore_unavailable);
+                    break;
+                default:
+                    errorTextMsg = getString(
+                            R.string.firestore_error_with_code,
+                            firestoreException.getCode().name()
+                    );
+                    break;
+            }
+        } else {
+            errorTextMsg = getString(R.string.events_load_error);
+        }
+        emptyMessage.setText(errorTextMsg);
+        emptyMessage.setVisibility(View.VISIBLE);
+        Toast.makeText(this, errorTextMsg, Toast.LENGTH_LONG).show();
     }
 
     private void setLoading(boolean loading) {

@@ -206,7 +206,8 @@ public class CreateEventActivity extends AppCompatActivity {
 
     private String firestoreErrorMessage(Exception exception) {
         if (!(exception instanceof FirebaseFirestoreException)) {
-            return getString(R.string.event_create_error);
+            String msg = exception.getMessage();
+            return msg != null ? msg : getString(R.string.event_create_error);
         }
 
         FirebaseFirestoreException firestoreException =
@@ -219,10 +220,11 @@ public class CreateEventActivity extends AppCompatActivity {
             case DEADLINE_EXCEEDED:
                 return getString(R.string.firestore_unavailable);
             default:
+                String details = firestoreException.getMessage();
                 return getString(
                         R.string.firestore_error_with_code,
                         firestoreException.getCode().name()
-                );
+                ) + (details != null ? " (" + details + ")" : "");
         }
     }
 
