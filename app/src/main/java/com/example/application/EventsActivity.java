@@ -2,6 +2,7 @@ package com.example.application;
 
 import android.content.Intent;
 import android.os.Bundle;
+import android.util.Log;
 import android.view.View;
 import android.widget.ProgressBar;
 import android.widget.TextView;
@@ -11,16 +12,22 @@ import androidx.appcompat.app.AppCompatActivity;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
+import com.google.android.gms.tasks.Task;
+import com.google.android.gms.tasks.Tasks;
+import com.google.android.material.button.MaterialButtonToggleGroup;
 import com.google.firebase.FirebaseApp;
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.firestore.DocumentSnapshot;
 import com.google.firebase.firestore.FirebaseFirestore;
+import com.google.firebase.firestore.QueryDocumentSnapshot;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.List;
 
 public class EventsActivity extends AppCompatActivity {
+    private static final String TAG = "EventsActivity";
     public static final String EXTRA_EVENT_ID = "com.example.application.EVENT_ID";
 
     private EventAdapter eventAdapter;
@@ -28,6 +35,8 @@ public class EventsActivity extends AppCompatActivity {
     private ProgressBar eventsProgress;
     private FirebaseAuth auth;
     private FirebaseFirestore database;
+
+    private boolean showingMyEvents = false;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -40,10 +49,18 @@ public class EventsActivity extends AppCompatActivity {
         RecyclerView eventsList = findViewById(R.id.events_list);
         emptyMessage = findViewById(R.id.events_empty_message);
         eventsProgress = findViewById(R.id.events_progress);
+        MaterialButtonToggleGroup filterToggle = findViewById(R.id.events_filter_toggle);
         eventAdapter = new EventAdapter(this::openEventDetails);
 
         eventsList.setLayoutManager(new LinearLayoutManager(this));
         eventsList.setAdapter(eventAdapter);
+
+        filterToggle.addOnButtonCheckedListener((group, checkedId, isChecked) -> {
+            if (isChecked) {
+                showingMyEvents = (checkedId == R.id.filter_my_events);
+                refreshEventsList();
+            }
+        });
 
         showEvents(Collections.emptyList());
 
@@ -62,32 +79,124 @@ public class EventsActivity extends AppCompatActivity {
             if (auth.getCurrentUser() == null) {
                 openLogin();
             } else {
-                loadEvents();
+                refreshEventsList();
             }
         }
     }
 
-    private void loadEvents() {
+    private void refreshEventsList() {
+        if (showingMyEvents) {
+            loadMyEvents();
+        } else {
+            loadAllEvents();
+        }
+    }
+
+    private void loadAllEvents() {
+        emptyMessage.setText(R.string.events_empty);
         setLoading(true);
         database.collection("events")
-                .orderBy("date")
                 .get()
                 .addOnSuccessListener(querySnapshot -> {
                     List<Event> events = new ArrayList<>();
                     for (DocumentSnapshot document : querySnapshot.getDocuments()) {
-                        Event event = document.toObject(Event.class);
-                        if (event != null) {
-                            event.setId(document.getId());
-                            events.add(event);
+                        try {
+                            Event event = document.toObject(Event.class);
+                            if (event != null) {
+                                event.setId(document.getId());
+                                events.add(event);
+                            }
+                        } catch (RuntimeException exception) {
+                            Log.e(TAG, "Documento de evento inválido: " + document.getId(), exception);
                         }
                     }
+                    events.sort(Comparator.comparing(
+                            Event::getDate,
+                            Comparator.nullsLast(Comparator.naturalOrder())
+                    ));
                     setLoading(false);
                     showEvents(events);
                 })
                 .addOnFailureListener(exception -> {
+                    Log.e(TAG, "Falha ao carregar eventos do Firestore", exception);
                     setLoading(false);
                     showEvents(Collections.emptyList());
-                    Toast.makeText(this, R.string.events_load_error, Toast.LENGTH_LONG).show();
+                    String details = exception.getMessage();
+                    Toast.makeText(
+                            this,
+                            details == null
+                                    ? getString(R.string.events_load_error)
+                                    : getString(R.string.events_load_error_with_details, details),
+                            Toast.LENGTH_LONG
+                    ).show();
+                });
+    }
+
+    private void loadMyEvents() {
+        emptyMessage.setText(R.string.my_events_empty);
+        if (auth == null || auth.getCurrentUser() == null) {
+            openLogin();
+            return;
+        }
+
+        String userId = auth.getCurrentUser().getUid();
+        setLoading(true);
+
+        database.collection("subscriptions")
+                .whereEqualTo("userId", userId)
+                .get()
+                .addOnSuccessListener(querySnapshot -> {
+                    if (querySnapshot.isEmpty()) {
+                        setLoading(false);
+                        showEvents(Collections.emptyList());
+                        return;
+                    }
+
+                    List<Task<DocumentSnapshot>> tasks = new ArrayList<>();
+                    for (QueryDocumentSnapshot subDoc : querySnapshot) {
+                        String eventId = subDoc.getString("eventId");
+                        if (eventId != null && !eventId.trim().isEmpty()) {
+                            tasks.add(database.collection("events").document(eventId).get());
+                        }
+                    }
+
+                    if (tasks.isEmpty()) {
+                        setLoading(false);
+                        showEvents(Collections.emptyList());
+                        return;
+                    }
+
+                    Tasks.whenAllComplete(tasks).addOnCompleteListener(allTasks -> {
+                        List<Event> myEvents = new ArrayList<>();
+                        for (Task<DocumentSnapshot> task : tasks) {
+                            if (task.isSuccessful() && task.getResult() != null) {
+                                DocumentSnapshot doc = task.getResult();
+                                if (doc.exists()) {
+                                    try {
+                                        Event event = doc.toObject(Event.class);
+                                        if (event != null) {
+                                            event.setId(doc.getId());
+                                            myEvents.add(event);
+                                        }
+                                    } catch (RuntimeException exception) {
+                                        Log.e(TAG, "Erro ao converter evento inscrito: " + doc.getId(), exception);
+                                    }
+                                }
+                            }
+                        }
+                        myEvents.sort(Comparator.comparing(
+                                Event::getDate,
+                                Comparator.nullsLast(Comparator.naturalOrder())
+                        ));
+                        setLoading(false);
+                        showEvents(myEvents);
+                    });
+                })
+                .addOnFailureListener(exception -> {
+                    Log.e(TAG, "Falha ao carregar minhas inscrições do Firestore", exception);
+                    setLoading(false);
+                    showEvents(Collections.emptyList());
+                    Toast.makeText(this, R.string.events_load_error, Toast.LENGTH_SHORT).show();
                 });
     }
 

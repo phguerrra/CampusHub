@@ -64,6 +64,32 @@
         android:layout_marginTop="20dp"
         android:text="@string/create_event" />
 
+    <com.google.android.material.button.MaterialButtonToggleGroup
+        android:id="@+id/events_filter_toggle"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="16dp"
+        app:checkedButton="@id/filter_all_events"
+        app:selectionRequired="true"
+        app:singleSelection="true">
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/filter_all_events"
+            style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="@string/all_events" />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/filter_my_events"
+            style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="@string/my_events" />
+    </com.google.android.material.button.MaterialButtonToggleGroup>
+
     <FrameLayout
         android:id="@+id/events_content"
         android:layout_width="match_parent"

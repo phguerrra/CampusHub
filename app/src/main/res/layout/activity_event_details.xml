@@ -120,6 +120,21 @@
                 android:textAppearance="@style/TextAppearance.MaterialComponents.Body1"
                 android:textColor="@color/text_primary"
                 tools:text="Descrição completa do evento, com todas as informações importantes para os participantes." />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/event_details_subscribe_button"
+                android:layout_width="match_parent"
+                android:layout_height="52dp"
+                android:layout_marginTop="32dp"
+                android:text="@string/subscribe_to_event" />
+
+            <ProgressBar
+                android:id="@+id/event_details_subscribe_progress"
+                android:layout_width="32dp"
+                android:layout_height="32dp"
+                android:layout_gravity="center_horizontal"
+                android:layout_marginTop="12dp"
+                android:visibility="gone" />
         </LinearLayout>
     </LinearLayout>
 </ScrollView>

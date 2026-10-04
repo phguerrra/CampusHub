@@ -21,6 +21,7 @@
     <string name="event_date_time">%1$s às %2$s</string>
     <string name="event_date_unavailable">Data indisponível</string>
     <string name="events_load_error">Não foi possível carregar os eventos.</string>
+    <string name="events_load_error_with_details">Não foi possível carregar os eventos: %1$s</string>
     <string name="event_details_invalid_id">Não foi possível identificar o evento.</string>
     <string name="event_details_not_found">Este evento não está mais disponível.</string>
     <string name="event_details_load_error">Não foi possível carregar os detalhes do evento.</string>
@@ -46,6 +47,9 @@
     <string name="event_slots_required">Informe uma quantidade de vagas maior que zero.</string>
     <string name="event_created">Evento criado com sucesso.</string>
     <string name="event_create_error">Não foi possível criar o evento. Confira sua permissão e tente novamente.</string>
+    <string name="firestore_permission_denied">O Firestore recusou a operação. Publique regras que permitam leitura e gravação para usuários autenticados.</string>
+    <string name="firestore_unavailable">Não foi possível acessar o Firestore. Verifique a conexão e tente novamente.</string>
+    <string name="firestore_error_with_code">Erro do Firestore: %1$s</string>
     <plurals name="event_available_slots">
         <item quantity="one">%d vaga disponível</item>
         <item quantity="other">%d vagas disponíveis</item>
@@ -57,4 +61,16 @@
     <string name="back_to_events">Voltar para eventos</string>
     <string name="profile_updated">Perfil atualizado com sucesso.</string>
     <string name="email_not_available">E-mail não disponível</string>
+    <string name="subscribe_to_event">Inscrever-se</string>
+    <string name="unsubscribe_from_event">Cancelar inscrição</string>
+    <string name="no_slots_available">Sem vagas disponíveis</string>
+    <string name="subscribe_success">Inscrição realizada com sucesso!</string>
+    <string name="unsubscribe_success">Inscrição cancelada com sucesso!</string>
+    <string name="subscribe_error">Não foi possível realizar a inscrição. Tente novamente.</string>
+    <string name="unsubscribe_error">Não foi possível cancelar a inscrição. Tente novamente.</string>
+    <string name="already_subscribed">Você já está inscrito neste evento.</string>
+    <string name="no_slots_left">As vagas deste evento se esgotaram.</string>
+    <string name="all_events">Todos os eventos</string>
+    <string name="my_events">Minhas inscrições</string>
+    <string name="my_events_empty">Você ainda não está inscrito em nenhum evento.</string>
 </resources>

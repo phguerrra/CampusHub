@@ -4,6 +4,7 @@ import android.app.DatePickerDialog;
 import android.app.TimePickerDialog;
 import android.content.Intent;
 import android.os.Bundle;
+import android.util.Log;
 import android.view.View;
 import android.widget.ProgressBar;
 import android.widget.TextView;
@@ -17,7 +18,9 @@ import com.google.android.material.textfield.TextInputLayout;
 import com.google.firebase.FirebaseApp;
 import com.google.firebase.Timestamp;
 import com.google.firebase.auth.FirebaseAuth;
+import com.google.firebase.firestore.FieldValue;
 import com.google.firebase.firestore.FirebaseFirestore;
+import com.google.firebase.firestore.FirebaseFirestoreException;
 
 import java.text.DateFormat;
 import java.text.SimpleDateFormat;
@@ -27,6 +30,7 @@ import java.util.Locale;
 import java.util.Map;
 
 public class CreateEventActivity extends AppCompatActivity {
+    private static final String TAG = "CreateEventActivity";
     private TextInputLayout nameLayout;
     private TextInputLayout descriptionLayout;
     private TextInputLayout dateLayout;
@@ -182,6 +186,8 @@ public class CreateEventActivity extends AppCompatActivity {
         event.put("time", selectedTime);
         event.put("location", location);
         event.put("availableSlots", availableSlots);
+        event.put("createdBy", auth.getCurrentUser().getUid());
+        event.put("createdAt", FieldValue.serverTimestamp());
 
         setLoading(true);
         database.collection("events")
@@ -193,8 +199,31 @@ public class CreateEventActivity extends AppCompatActivity {
                 })
                 .addOnFailureListener(exception -> {
                     setLoading(false);
-                    showError(getString(R.string.event_create_error));
+                    Log.e(TAG, "Falha ao salvar evento no Firestore", exception);
+                    showError(firestoreErrorMessage(exception));
                 });
+    }
+
+    private String firestoreErrorMessage(Exception exception) {
+        if (!(exception instanceof FirebaseFirestoreException)) {
+            return getString(R.string.event_create_error);
+        }
+
+        FirebaseFirestoreException firestoreException =
+                (FirebaseFirestoreException) exception;
+        switch (firestoreException.getCode()) {
+            case PERMISSION_DENIED:
+            case UNAUTHENTICATED:
+                return getString(R.string.firestore_permission_denied);
+            case UNAVAILABLE:
+            case DEADLINE_EXCEEDED:
+                return getString(R.string.firestore_unavailable);
+            default:
+                return getString(
+                        R.string.firestore_error_with_code,
+                        firestoreException.getCode().name()
+                );
+        }
     }
 
     private void setLoading(boolean loading) {

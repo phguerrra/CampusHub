@@ -5,6 +5,7 @@ import android.os.Bundle;
 import android.view.View;
 import android.widget.ProgressBar;
 import android.widget.TextView;
+import android.widget.Toast;
 
 import androidx.appcompat.app.AppCompatActivity;
 
@@ -12,11 +13,17 @@ import com.google.android.material.button.MaterialButton;
 import com.google.firebase.FirebaseApp;
 import com.google.firebase.Timestamp;
 import com.google.firebase.auth.FirebaseAuth;
+import com.google.firebase.firestore.DocumentReference;
+import com.google.firebase.firestore.DocumentSnapshot;
+import com.google.firebase.firestore.FieldValue;
 import com.google.firebase.firestore.FirebaseFirestore;
+import com.google.firebase.firestore.FirebaseFirestoreException;
 
 import java.text.DateFormat;
 import java.text.SimpleDateFormat;
+import java.util.HashMap;
 import java.util.Locale;
+import java.util.Map;
 
 public class EventDetailsActivity extends AppCompatActivity {
     private TextView nameText;
@@ -28,10 +35,14 @@ public class EventDetailsActivity extends AppCompatActivity {
     private View detailsContent;
     private ProgressBar progress;
     private MaterialButton retryButton;
+    private MaterialButton subscribeButton;
+    private ProgressBar subscribeProgress;
 
     private FirebaseAuth auth;
     private FirebaseFirestore database;
     private String eventId;
+    private Event currentEvent;
+    private boolean isSubscribed = false;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -79,6 +90,8 @@ public class EventDetailsActivity extends AppCompatActivity {
         detailsContent = findViewById(R.id.event_details_content);
         progress = findViewById(R.id.event_details_progress);
         retryButton = findViewById(R.id.event_details_retry_button);
+        subscribeButton = findViewById(R.id.event_details_subscribe_button);
+        subscribeProgress = findViewById(R.id.event_details_subscribe_progress);
     }
 
     private void loadEvent() {
@@ -97,10 +110,175 @@ public class EventDetailsActivity extends AppCompatActivity {
                         return;
                     }
                     event.setId(document.getId());
+                    currentEvent = event;
                     showEvent(event);
+                    checkSubscriptionStatus();
                 })
                 .addOnFailureListener(exception ->
                         showError(getString(R.string.event_details_load_error), true));
+    }
+
+    private void checkSubscriptionStatus() {
+        if (auth == null || auth.getCurrentUser() == null || database == null) {
+            return;
+        }
+        String userId = auth.getCurrentUser().getUid();
+        String subscriptionDocId = eventId + "_" + userId;
+
+        database.collection("subscriptions")
+                .document(subscriptionDocId)
+                .get()
+                .addOnSuccessListener(document -> {
+                    isSubscribed = document.exists();
+                    updateSubscribeButtonUI();
+                })
+                .addOnFailureListener(exception -> {
+                    isSubscribed = false;
+                    updateSubscribeButtonUI();
+                });
+    }
+
+    private void updateSubscribeButtonUI() {
+        setSubscribeLoading(false);
+        if (currentEvent == null) {
+            return;
+        }
+
+        if (isSubscribed) {
+            subscribeButton.setText(R.string.unsubscribe_from_event);
+            subscribeButton.setEnabled(true);
+            subscribeButton.setOnClickListener(v -> unsubscribeFromEvent());
+        } else {
+            if (currentEvent.getAvailableSlots() > 0) {
+                subscribeButton.setText(R.string.subscribe_to_event);
+                subscribeButton.setEnabled(true);
+                subscribeButton.setOnClickListener(v -> subscribeToEvent());
+            } else {
+                subscribeButton.setText(R.string.no_slots_available);
+                subscribeButton.setEnabled(false);
+                subscribeButton.setOnClickListener(null);
+            }
+        }
+    }
+
+    private void subscribeToEvent() {
+        if (auth == null || auth.getCurrentUser() == null || database == null) {
+            openLogin();
+            return;
+        }
+
+        String userId = auth.getCurrentUser().getUid();
+        String subscriptionDocId = eventId + "_" + userId;
+
+        setSubscribeLoading(true);
+
+        DocumentReference eventRef = database.collection("events").document(eventId);
+        DocumentReference subRef = database.collection("subscriptions").document(subscriptionDocId);
+        DocumentReference eventSubRef = eventRef.collection("subscriptions").document(userId);
+
+        database.runTransaction(transaction -> {
+            DocumentSnapshot eventSnap = transaction.get(eventRef);
+            if (!eventSnap.exists()) {
+                throw new FirebaseFirestoreException(
+                        "Evento não encontrado",
+                        FirebaseFirestoreException.Code.NOT_FOUND
+                );
+            }
+            Long slots = eventSnap.getLong("availableSlots");
+            if (slots == null || slots <= 0) {
+                throw new FirebaseFirestoreException(
+                        "Sem vagas disponíveis",
+                        FirebaseFirestoreException.Code.ABORTED
+                );
+            }
+            DocumentSnapshot subSnap = transaction.get(subRef);
+            if (subSnap.exists()) {
+                throw new FirebaseFirestoreException(
+                        "Já inscrito",
+                        FirebaseFirestoreException.Code.ALREADY_EXISTS
+                );
+            }
+
+            transaction.update(eventRef, "availableSlots", slots - 1);
+
+            Map<String, Object> subData = new HashMap<>();
+            subData.put("eventId", eventId);
+            subData.put("userId", userId);
+            subData.put("subscribedAt", FieldValue.serverTimestamp());
+
+            transaction.set(subRef, subData);
+            transaction.set(eventSubRef, subData);
+
+            return null;
+        }).addOnSuccessListener(aVoid -> {
+            Toast.makeText(this, R.string.subscribe_success, Toast.LENGTH_SHORT).show();
+            loadEvent();
+        }).addOnFailureListener(exception -> {
+            setSubscribeLoading(false);
+            String errorMsg = getString(R.string.subscribe_error);
+            if (exception instanceof FirebaseFirestoreException) {
+                FirebaseFirestoreException firestoreException = (FirebaseFirestoreException) exception;
+                if (firestoreException.getCode() == FirebaseFirestoreException.Code.ABORTED) {
+                    errorMsg = getString(R.string.no_slots_left);
+                } else if (firestoreException.getCode() == FirebaseFirestoreException.Code.ALREADY_EXISTS) {
+                    errorMsg = getString(R.string.already_subscribed);
+                }
+            }
+            Toast.makeText(this, errorMsg, Toast.LENGTH_LONG).show();
+        });
+    }
+
+    private void unsubscribeFromEvent() {
+        if (auth == null || auth.getCurrentUser() == null || database == null) {
+            openLogin();
+            return;
+        }
+
+        String userId = auth.getCurrentUser().getUid();
+        String subscriptionDocId = eventId + "_" + userId;
+
+        setSubscribeLoading(true);
+
+        DocumentReference eventRef = database.collection("events").document(eventId);
+        DocumentReference subRef = database.collection("subscriptions").document(subscriptionDocId);
+        DocumentReference eventSubRef = eventRef.collection("subscriptions").document(userId);
+
+        database.runTransaction(transaction -> {
+            DocumentSnapshot eventSnap = transaction.get(eventRef);
+            if (!eventSnap.exists()) {
+                throw new FirebaseFirestoreException(
+                        "Evento não encontrado",
+                        FirebaseFirestoreException.Code.NOT_FOUND
+                );
+            }
+            DocumentSnapshot subSnap = transaction.get(subRef);
+            if (!subSnap.exists()) {
+                throw new FirebaseFirestoreException(
+                        "Inscrição não encontrada",
+                        FirebaseFirestoreException.Code.NOT_FOUND
+                );
+            }
+
+            Long slots = eventSnap.getLong("availableSlots");
+            long newSlots = (slots == null) ? 1 : slots + 1;
+
+            transaction.update(eventRef, "availableSlots", newSlots);
+            transaction.delete(subRef);
+            transaction.delete(eventSubRef);
+
+            return null;
+        }).addOnSuccessListener(aVoid -> {
+            Toast.makeText(this, R.string.unsubscribe_success, Toast.LENGTH_SHORT).show();
+            loadEvent();
+        }).addOnFailureListener(exception -> {
+            setSubscribeLoading(false);
+            Toast.makeText(this, R.string.unsubscribe_error, Toast.LENGTH_LONG).show();
+        });
+    }
+
+    private void setSubscribeLoading(boolean loading) {
+        subscribeProgress.setVisibility(loading ? View.VISIBLE : View.GONE);
+        subscribeButton.setEnabled(!loading);
     }
 
     private void showLoading() {
