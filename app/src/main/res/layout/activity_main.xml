@@ -71,6 +71,16 @@
                 android:maxLines="1" />
         </com.google.android.material.textfield.TextInputLayout>
 
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/forgot_password_button"
+            style="@style/Widget.MaterialComponents.Button.TextButton"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="end"
+            android:layout_marginTop="4dp"
+            android:text="@string/forgot_password"
+            android:textColor="@color/brand_primary" />
+
         <TextView
             android:id="@+id/auth_error"
             android:layout_width="match_parent"
