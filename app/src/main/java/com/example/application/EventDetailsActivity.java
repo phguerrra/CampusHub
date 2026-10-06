@@ -38,6 +38,7 @@ public class EventDetailsActivity extends AppCompatActivity {
     private ProgressBar progress;
     private MaterialButton retryButton;
     private MaterialButton subscribeButton;
+    private MaterialButton favoriteButton;
     private ProgressBar subscribeProgress;
 
     private FirebaseAuth auth;
@@ -45,6 +46,7 @@ public class EventDetailsActivity extends AppCompatActivity {
     private String eventId;
     private Event currentEvent;
     private boolean isSubscribed = false;
+    private boolean isFavorited = false;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -93,6 +95,7 @@ public class EventDetailsActivity extends AppCompatActivity {
         progress = findViewById(R.id.event_details_progress);
         retryButton = findViewById(R.id.event_details_retry_button);
         subscribeButton = findViewById(R.id.event_details_subscribe_button);
+        favoriteButton = findViewById(R.id.event_details_favorite_button);
         subscribeProgress = findViewById(R.id.event_details_subscribe_progress);
     }
 
@@ -115,6 +118,7 @@ public class EventDetailsActivity extends AppCompatActivity {
                     currentEvent = event;
                     showEvent(event);
                     checkSubscriptionStatus();
+                    checkFavoriteStatus();
                 })
                 .addOnFailureListener(exception -> {
                     Log.e(TAG, "Erro ao carregar detalhes do evento", exception);
@@ -143,6 +147,27 @@ public class EventDetailsActivity extends AppCompatActivity {
                 });
     }
 
+    private void checkFavoriteStatus() {
+        if (auth == null || auth.getCurrentUser() == null || database == null) {
+            return;
+        }
+        String userId = auth.getCurrentUser().getUid();
+        String favoriteDocId = eventId + "_" + userId;
+
+        database.collection("favorites")
+                .document(favoriteDocId)
+                .get()
+                .addOnSuccessListener(document -> {
+                    isFavorited = document.exists();
+                    updateFavoriteButtonUI();
+                })
+                .addOnFailureListener(exception -> {
+                    Log.e(TAG, "Erro ao checar status de favorito", exception);
+                    isFavorited = false;
+                    updateFavoriteButtonUI();
+                });
+    }
+
     private void updateSubscribeButtonUI() {
         setSubscribeLoading(false);
         if (currentEvent == null) {
@@ -163,6 +188,62 @@ public class EventDetailsActivity extends AppCompatActivity {
                 subscribeButton.setEnabled(false);
                 subscribeButton.setOnClickListener(null);
             }
+        }
+    }
+
+    private void updateFavoriteButtonUI() {
+        favoriteButton.setEnabled(true);
+        if (isFavorited) {
+            favoriteButton.setText(R.string.unfavorite_event);
+            favoriteButton.setIconResource(R.drawable.ic_star);
+        } else {
+            favoriteButton.setText(R.string.favorite_event);
+            favoriteButton.setIconResource(R.drawable.ic_star_border);
+        }
+        favoriteButton.setOnClickListener(v -> toggleFavorite());
+    }
+
+    private void toggleFavorite() {
+        if (auth == null || auth.getCurrentUser() == null || database == null) {
+            openLogin();
+            return;
+        }
+
+        String userId = auth.getCurrentUser().getUid();
+        String favoriteDocId = eventId + "_" + userId;
+        DocumentReference favRef = database.collection("favorites").document(favoriteDocId);
+
+        favoriteButton.setEnabled(false);
+
+        if (isFavorited) {
+            favRef.delete()
+                    .addOnSuccessListener(aVoid -> {
+                        isFavorited = false;
+                        updateFavoriteButtonUI();
+                        Toast.makeText(this, R.string.favorite_removed, Toast.LENGTH_SHORT).show();
+                    })
+                    .addOnFailureListener(exception -> {
+                        favoriteButton.setEnabled(true);
+                        Log.e(TAG, "Erro ao remover favorito", exception);
+                        Toast.makeText(this, R.string.favorite_error, Toast.LENGTH_SHORT).show();
+                    });
+        } else {
+            Map<String, Object> favData = new HashMap<>();
+            favData.put("eventId", eventId);
+            favData.put("userId", userId);
+            favData.put("favoritedAt", FieldValue.serverTimestamp());
+
+            favRef.set(favData)
+                    .addOnSuccessListener(aVoid -> {
+                        isFavorited = true;
+                        updateFavoriteButtonUI();
+                        Toast.makeText(this, R.string.favorite_added, Toast.LENGTH_SHORT).show();
+                    })
+                    .addOnFailureListener(exception -> {
+                        favoriteButton.setEnabled(true);
+                        Log.e(TAG, "Erro ao adicionar favorito", exception);
+                        Toast.makeText(this, R.string.favorite_error, Toast.LENGTH_SHORT).show();
+                    });
         }
     }
 

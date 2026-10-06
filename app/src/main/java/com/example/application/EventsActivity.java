@@ -33,13 +33,17 @@ public class EventsActivity extends AppCompatActivity {
     private static final String TAG = "EventsActivity";
     public static final String EXTRA_EVENT_ID = "com.example.application.EVENT_ID";
 
+    private static final int FILTER_ALL = 0;
+    private static final int FILTER_MY_EVENTS = 1;
+    private static final int FILTER_FAVORITES = 2;
+
     private EventAdapter eventAdapter;
     private TextView emptyMessage;
     private ProgressBar eventsProgress;
     private FirebaseAuth auth;
     private FirebaseFirestore database;
 
-    private boolean showingMyEvents = false;
+    private int currentFilterMode = FILTER_ALL;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -60,7 +64,13 @@ public class EventsActivity extends AppCompatActivity {
 
         filterToggle.addOnButtonCheckedListener((group, checkedId, isChecked) -> {
             if (isChecked) {
-                showingMyEvents = (checkedId == R.id.filter_my_events);
+                if (checkedId == R.id.filter_my_events) {
+                    currentFilterMode = FILTER_MY_EVENTS;
+                } else if (checkedId == R.id.filter_favorite_events) {
+                    currentFilterMode = FILTER_FAVORITES;
+                } else {
+                    currentFilterMode = FILTER_ALL;
+                }
                 refreshEventsList();
             }
         });
@@ -88,8 +98,10 @@ public class EventsActivity extends AppCompatActivity {
     }
 
     private void refreshEventsList() {
-        if (showingMyEvents) {
+        if (currentFilterMode == FILTER_MY_EVENTS) {
             loadMyEvents();
+        } else if (currentFilterMode == FILTER_FAVORITES) {
+            loadFavoriteEvents();
         } else {
             loadAllEvents();
         }
@@ -218,6 +230,82 @@ public class EventsActivity extends AppCompatActivity {
             ));
             setLoading(false);
             showEvents(myEvents);
+        });
+    }
+
+    private void loadFavoriteEvents() {
+        emptyMessage.setText(R.string.favorite_events_empty);
+        if (auth == null || auth.getCurrentUser() == null) {
+            openLogin();
+            return;
+        }
+
+        String userId = auth.getCurrentUser().getUid();
+        setLoading(true);
+
+        database.collection("favorites")
+                .whereEqualTo("userId", userId)
+                .get(Source.SERVER)
+                .addOnSuccessListener(this::processFavorites)
+                .addOnFailureListener(exception -> {
+                    Log.w(TAG, "Falha ao carregar favoritos do servidor, tentando cache...", exception);
+                    database.collection("favorites")
+                            .whereEqualTo("userId", userId)
+                            .get(Source.CACHE)
+                            .addOnSuccessListener(this::processFavorites)
+                            .addOnFailureListener(cacheException -> {
+                                setLoading(false);
+                                showEvents(Collections.emptyList());
+                                handleFirestoreError(exception);
+                            });
+                });
+    }
+
+    private void processFavorites(QuerySnapshot querySnapshot) {
+        if (querySnapshot == null || querySnapshot.isEmpty()) {
+            setLoading(false);
+            showEvents(Collections.emptyList());
+            return;
+        }
+
+        List<Task<DocumentSnapshot>> tasks = new ArrayList<>();
+        for (QueryDocumentSnapshot favDoc : querySnapshot) {
+            String eventId = favDoc.getString("eventId");
+            if (eventId != null && !eventId.trim().isEmpty()) {
+                tasks.add(database.collection("events").document(eventId).get());
+            }
+        }
+
+        if (tasks.isEmpty()) {
+            setLoading(false);
+            showEvents(Collections.emptyList());
+            return;
+        }
+
+        Tasks.whenAllComplete(tasks).addOnCompleteListener(allTasks -> {
+            List<Event> favEvents = new ArrayList<>();
+            for (Task<DocumentSnapshot> task : tasks) {
+                if (task.isSuccessful() && task.getResult() != null) {
+                    DocumentSnapshot doc = task.getResult();
+                    if (doc.exists()) {
+                        try {
+                            Event event = doc.toObject(Event.class);
+                            if (event != null) {
+                                event.setId(doc.getId());
+                                favEvents.add(event);
+                            }
+                        } catch (RuntimeException exception) {
+                            Log.e(TAG, "Erro ao converter evento favorito: " + doc.getId(), exception);
+                        }
+                    }
+                }
+            }
+            favEvents.sort(Comparator.comparing(
+                    Event::getDate,
+                    Comparator.nullsLast(Comparator.naturalOrder())
+            ));
+            setLoading(false);
+            showEvents(favEvents);
         });
     }
 

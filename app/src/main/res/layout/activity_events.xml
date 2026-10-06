@@ -88,6 +88,14 @@
             android:layout_height="wrap_content"
             android:layout_weight="1"
             android:text="@string/my_events" />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/filter_favorite_events"
+            style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="@string/favorite_events" />
     </com.google.android.material.button.MaterialButtonToggleGroup>
 
     <FrameLayout
