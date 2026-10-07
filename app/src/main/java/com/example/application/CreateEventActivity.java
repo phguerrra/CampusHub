@@ -6,6 +6,8 @@ import android.content.Intent;
 import android.os.Bundle;
 import android.util.Log;
 import android.view.View;
+import android.widget.ArrayAdapter;
+import android.widget.AutoCompleteTextView;
 import android.widget.ProgressBar;
 import android.widget.TextView;
 import android.widget.Toast;
@@ -32,12 +34,14 @@ import java.util.Map;
 public class CreateEventActivity extends AppCompatActivity {
     private static final String TAG = "CreateEventActivity";
     private TextInputLayout nameLayout;
+    private TextInputLayout categoryLayout;
     private TextInputLayout descriptionLayout;
     private TextInputLayout dateLayout;
     private TextInputLayout timeLayout;
     private TextInputLayout locationLayout;
     private TextInputLayout slotsLayout;
     private TextInputEditText nameInput;
+    private AutoCompleteTextView categoryInput;
     private TextInputEditText descriptionInput;
     private TextInputEditText dateInput;
     private TextInputEditText timeInput;
@@ -58,6 +62,7 @@ public class CreateEventActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_create_event);
         bindViews();
+        setupCategoryDropdown();
         setupActions();
 
         if (FirebaseApp.getApps(this).isEmpty()) {
@@ -79,12 +84,14 @@ public class CreateEventActivity extends AppCompatActivity {
 
     private void bindViews() {
         nameLayout = findViewById(R.id.create_event_name_layout);
+        categoryLayout = findViewById(R.id.create_event_category_layout);
         descriptionLayout = findViewById(R.id.create_event_description_layout);
         dateLayout = findViewById(R.id.create_event_date_layout);
         timeLayout = findViewById(R.id.create_event_time_layout);
         locationLayout = findViewById(R.id.create_event_location_layout);
         slotsLayout = findViewById(R.id.create_event_slots_layout);
         nameInput = findViewById(R.id.create_event_name_input);
+        categoryInput = findViewById(R.id.create_event_category_input);
         descriptionInput = findViewById(R.id.create_event_description_input);
         dateInput = findViewById(R.id.create_event_date_input);
         timeInput = findViewById(R.id.create_event_time_input);
@@ -94,6 +101,22 @@ public class CreateEventActivity extends AppCompatActivity {
         saveButton = findViewById(R.id.save_event_button);
         cancelButton = findViewById(R.id.cancel_create_event_button);
         progress = findViewById(R.id.create_event_progress);
+    }
+
+    private void setupCategoryDropdown() {
+        String[] categories = new String[]{
+                getString(R.string.category_academic),
+                getString(R.string.category_sports),
+                getString(R.string.category_tech),
+                getString(R.string.category_cultural),
+                getString(R.string.category_other)
+        };
+        ArrayAdapter<String> adapter = new ArrayAdapter<>(
+                this,
+                android.R.layout.simple_dropdown_item_1line,
+                categories
+        );
+        categoryInput.setAdapter(adapter);
     }
 
     private void setupActions() {
@@ -144,6 +167,7 @@ public class CreateEventActivity extends AppCompatActivity {
 
         clearErrors();
         String name = textOf(nameInput).trim();
+        String category = categoryInput.getText() != null ? categoryInput.getText().toString().trim() : "";
         String description = textOf(descriptionInput).trim();
         String location = textOf(locationInput).trim();
         String slotsText = textOf(slotsInput).trim();
@@ -151,6 +175,10 @@ public class CreateEventActivity extends AppCompatActivity {
         boolean valid = true;
         if (name.length() < 2) {
             nameLayout.setError(getString(R.string.event_name_required));
+            valid = false;
+        }
+        if (category.isEmpty()) {
+            categoryLayout.setError(getString(R.string.event_category_required));
             valid = false;
         }
         if (description.length() < 10) {
@@ -181,6 +209,7 @@ public class CreateEventActivity extends AppCompatActivity {
 
         Map<String, Object> event = new HashMap<>();
         event.put("name", name);
+        event.put("category", category);
         event.put("description", description);
         event.put("date", new Timestamp(selectedDate.getTime()));
         event.put("time", selectedTime);
@@ -233,6 +262,7 @@ public class CreateEventActivity extends AppCompatActivity {
         saveButton.setEnabled(!loading);
         cancelButton.setEnabled(!loading);
         nameInput.setEnabled(!loading);
+        categoryInput.setEnabled(!loading);
         descriptionInput.setEnabled(!loading);
         dateInput.setEnabled(!loading);
         timeInput.setEnabled(!loading);
@@ -243,6 +273,7 @@ public class CreateEventActivity extends AppCompatActivity {
     private void clearErrors() {
         errorText.setVisibility(View.GONE);
         nameLayout.setError(null);
+        categoryLayout.setError(null);
         descriptionLayout.setError(null);
         dateLayout.setError(null);
         timeLayout.setError(null);
