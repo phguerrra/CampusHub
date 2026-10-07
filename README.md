@@ -1,88 +1,102 @@
 # CampusHub 🎓
 
-**CampusHub** é um aplicativo Android desenvolvido para ajudar alunos a encontrar, organizar, inscrever-se e favoritar eventos acadêmicos e universitários.
+**CampusHub** is an Android application designed to help university students discover, organize, enroll in, comment on, and bookmark academic and campus events.
 
 ---
 
-## 🚀 Funcionalidades Principal
+## 🚀 Key Features
 
-### 🔐 Autenticação & Usuários
-- **Criar Conta:** Cadastro com nome, e-mail e senha.
-- **Login Seguro:** Autenticação via Firebase Auth com validação de dados.
-- **Recuperação de Senha:** Envio de e-mail de redefinição de senha com um clique.
-- **Perfil do Usuário:** Consulta do e-mail cadastrado e atualização do nome de exibição.
+### 🔐 Authentication & User Management
+- **Create Account:** Register with name, email, and password.
+- **Secure Login:** Firebase Authentication with input validation.
+- **Password Reset:** One-tap password reset email request.
+- **User Profile:** View registered email and update display name.
 
-### 📅 Gestão de Eventos
-- **Listagem de Eventos:** Exibição de eventos disponíveis ordenados por data.
-- **Detalhes do Evento:** Consulta das informações completas (nome, data, horário, local, vagas e descrição).
-- **Criação de Eventos:** Cadastro de novos eventos informando vagas e detalhes.
+### 📅 Event Management
+- **Event Listings:** Browse upcoming events ordered by date.
+- **Event Details:** View comprehensive event details (title, category, date, time, location, available slots, and description).
+- **Event Creation:** Create new campus events with custom categories (Academic, Sports, Technology, Cultural, Other) and seat capacities.
 
-### 🎟️ Inscrições em Eventos
-- **Inscrição:** Inscrição com atualização atômica de vagas no Cloud Firestore.
-- **Cancelamento de Inscrição:** Possibilidade de desmarcar presença, liberando a vaga para outros alunos.
-- **Filtro "Minhas Inscrições":** Aba dedicada para listar eventos em que o aluno está inscrito.
+### 🎟️ Event Enrollments
+- **Enroll / Unenroll:** Register or cancel enrollment with atomic seat capacity updates in Cloud Firestore.
+- **"My Enrollments" Filter:** Dedicated view listing events the student is currently enrolled in.
 
-### ⭐ Favoritos
-- **Favoritar/Desfavoritar:** Marque ou desmarque qualquer evento como favorito (independente de estar inscrito).
-- **Filtro "Favoritos":** Aba dedicada para visualizar rapidamente seus eventos favoritados.
+### ⭐ Favorites
+- **Favorite / Unfavorite:** Bookmark or unbookmark any event (independent of enrollment).
+- **"Favorites" Filter:** Dedicated tab to quickly view bookmarked events.
+
+### 💬 Event Comments
+- **Post Comments:** Authenticated users can post comments on event details pages.
+- **Author & Timestamp:** Comments display the author's name and publication timestamp.
+- **Edit & Delete Controls:** Users can edit or delete **only their own** comments.
 
 ---
 
-## 🛠️ Tecnologias Utilizadas
+## 🛠️ Tech Stack
 
-- **Linguagem:** Java / Kotlin
-- **SDK Android:** Min SDK 31 | Target SDK 37
-- **Arquitetura & UI:** Material Design 3, RecyclerView, ConstraintLayout/LinearLayout, Vector Drawables
+- **Language:** Java / Kotlin
+- **Android SDK:** Min SDK 31 | Target SDK 37
+- **Architecture & UI:** Material Design 3, RecyclerView, ConstraintLayout/LinearLayout, Vector Drawables
 - **Backend & Database:** Google Firebase
-  - **Firebase Authentication:** Autenticação por e-mail e senha.
-  - **Cloud Firestore:** Banco de dados NoSQL em tempo real.
+  - **Firebase Authentication:** Email and password authentication.
+  - **Cloud Firestore:** Real-time NoSQL database.
 - **Build System:** Gradle (Kotlin DSL `.kts`)
 
 ---
 
-## 🗄️ Estrutura do Banco de Dados (Cloud Firestore)
+## 🗄️ Database Structure (Cloud Firestore)
 
-### Coleção `events`
-| Campo | Tipo | Descrição |
+### Collection `events`
+| Field | Type | Description |
 | :--- | :--- | :--- |
-| `name` | String | Nome do evento |
-| `description` | String | Descrição detalhada |
-| `date` | Timestamp | Data do evento |
-| `time` | String | Horário (ex: "19:00") |
-| `location` | String | Local do evento |
-| `availableSlots` | Number | Quantidade de vagas disponíveis |
-| `createdBy` | String | UID do organizador/criador |
-| `createdAt` | Timestamp | Data de criação no servidor |
+| `name` | String | Name/Title of the event |
+| `category` | String | Event category (Academic, Sports, Technology, Cultural, Other) |
+| `description` | String | Detailed event description |
+| `date` | Timestamp | Scheduled event date |
+| `time` | String | Scheduled event time (e.g. "19:00") |
+| `location` | String | Event venue/location |
+| `availableSlots` | Number | Available seat capacity |
+| `createdBy` | String | UID of the event organizer |
+| `createdAt` | Timestamp | Server timestamp when created |
 
-### Coleção `subscriptions` (ID do Documento: `${eventId}_${userId}`)
-| Campo | Tipo | Descrição |
+### Subcollection `events/{eventId}/comments`
+| Field | Type | Description |
 | :--- | :--- | :--- |
-| `eventId` | String | ID do documento do evento |
-| `userId` | String | UID do usuário inscrito |
-| `subscribedAt` | Timestamp | Data e hora da inscrição |
+| `eventId` | String | Associated event document ID |
+| `userId` | String | UID of the comment author |
+| `authorName` | String | Display name of the comment author |
+| `text` | String | Comment text body |
+| `createdAt` | Timestamp | Server timestamp when published |
 
-### Coleção `favorites` (ID do Documento: `${eventId}_${userId}`)
-| Campo | Tipo | Descrição |
+### Collection `subscriptions` (Document ID: `${eventId}_${userId}`)
+| Field | Type | Description |
 | :--- | :--- | :--- |
-| `eventId` | String | ID do documento do evento |
-| `userId` | String | UID do usuário que favoritou |
-| `favoritedAt` | Timestamp | Data e hora da inclusão nos favoritos |
+| `eventId` | String | Associated event document ID |
+| `userId` | String | UID of the enrolled user |
+| `subscribedAt` | Timestamp | Server timestamp when enrolled |
+
+### Collection `favorites` (Document ID: `${eventId}_${userId}`)
+| Field | Type | Description |
+| :--- | :--- | :--- |
+| `eventId` | String | Associated event document ID |
+| `userId` | String | UID of the user who bookmarked the event |
+| `favoritedAt` | Timestamp | Server timestamp when bookmarked |
 
 ---
 
-## ⚙️ Configuração do Ambiente
+## ⚙️ Environment Setup
 
-1. **Clonar o Repositório:**
+1. **Clone the Repository:**
    ```bash
-   git clone <URL_DO_REPOSITORIO>
+   git clone <REPOSITORY_URL>
    ```
 
-2. **Configuração do Firebase:**
-   - Acesse o [Firebase Console](https://console.firebase.google.com/).
-   - Crie um projeto Firebase e adicione um aplicativo Android com o pacote `com.project.application`.
-   - Baixe o arquivo `google-services.json` e coloque na pasta `app/` do projeto.
-   - Ative o serviço **Authentication** (método E-mail/Senha).
-   - Ative o **Firestore Database** e configure as regras de segurança:
+2. **Firebase Setup:**
+   - Go to the [Firebase Console](https://console.firebase.google.com/).
+   - Create a Firebase project and add an Android app with package name `com.project.application`.
+   - Download `google-services.json` and place it inside the `app/` directory of the project.
+   - Enable **Authentication** (Email/Password sign-in method).
+   - Enable **Firestore Database** and configure the security rules:
 
    ```javascript
    rules_version = '2';
@@ -95,18 +109,18 @@
    }
    ```
 
-3. **Execução no Android Studio:**
-   - Abra o projeto no **Android Studio**.
-   - Sincronize o Gradle (`Sync Project with Gradle Files`).
-   - Execute o projeto em um emulador ou dispositivo físico com **Android 12 (API 31)** ou superior.
+3. **Running in Android Studio:**
+   - Open the project in **Android Studio**.
+   - Sync Gradle files (`Sync Project with Gradle Files`).
+   - Run the application on an emulator or physical device running **Android 12 (API 31)** or higher.
 
 ---
 
-## 📱 Telas do Aplicativo
+## 📱 Application Screens
 
-- `MainActivity` - Tela de Login e Recuperação de Senha
-- `RegisterActivity` - Tela de Cadastro de Usuário
-- `ProfileActivity` - Tela de Edição do Perfil
-- `EventsActivity` - Lista de Eventos com Alternância de Filtros (*Todos | Minhas Inscrições | Favoritos*)
-- `EventDetailsActivity` - Detalhes do Evento com botões de Inscrição e Favorito
-- `CreateEventActivity` - Formulário para Criar Novo Evento
+- `MainActivity` - Login & Password Reset Screen
+- `RegisterActivity` - User Account Registration Screen
+- `ProfileActivity` - User Profile Editing Screen
+- `EventsActivity` - Events List with Filter Toggle (*All | My Enrollments | Favorites*)
+- `EventDetailsActivity` - Event Details with Enrollment, Favoriting, and Comments Section
+- `CreateEventActivity` - New Event Creation Form with Category Dropdown
