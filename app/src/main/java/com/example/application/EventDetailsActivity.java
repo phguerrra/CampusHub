@@ -4,24 +4,34 @@ import android.content.Intent;
 import android.os.Bundle;
 import android.util.Log;
 import android.view.View;
+import android.widget.EditText;
 import android.widget.ProgressBar;
 import android.widget.TextView;
 import android.widget.Toast;
 
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.recyclerview.widget.LinearLayoutManager;
+import androidx.recyclerview.widget.RecyclerView;
 
 import com.google.android.material.button.MaterialButton;
+import com.google.android.material.dialog.MaterialAlertDialogBuilder;
+import com.google.android.material.textfield.TextInputEditText;
 import com.google.firebase.FirebaseApp;
 import com.google.firebase.Timestamp;
 import com.google.firebase.auth.FirebaseAuth;
+import com.google.firebase.auth.FirebaseUser;
 import com.google.firebase.firestore.DocumentReference;
 import com.google.firebase.firestore.FieldValue;
 import com.google.firebase.firestore.FirebaseFirestore;
 import com.google.firebase.firestore.FirebaseFirestoreException;
+import com.google.firebase.firestore.Query;
+import com.google.firebase.firestore.QueryDocumentSnapshot;
 
 import java.text.DateFormat;
 import java.text.SimpleDateFormat;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
@@ -29,6 +39,7 @@ public class EventDetailsActivity extends AppCompatActivity {
     private static final String TAG = "EventDetailsActivity";
 
     private TextView nameText;
+    private TextView categoryText;
     private TextView dateTimeText;
     private TextView locationText;
     private TextView descriptionText;
@@ -40,6 +51,12 @@ public class EventDetailsActivity extends AppCompatActivity {
     private MaterialButton subscribeButton;
     private MaterialButton favoriteButton;
     private ProgressBar subscribeProgress;
+
+    private TextInputEditText commentInput;
+    private MaterialButton sendCommentButton;
+    private TextView commentsEmptyMessage;
+    private RecyclerView commentsRecyclerView;
+    private CommentAdapter commentAdapter;
 
     private FirebaseAuth auth;
     private FirebaseFirestore database;
@@ -53,9 +70,11 @@ public class EventDetailsActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_event_details);
         bindViews();
+        setupCommentsRecyclerView();
 
         findViewById(R.id.event_details_back_button).setOnClickListener(view -> finish());
         retryButton.setOnClickListener(view -> loadEvent());
+        sendCommentButton.setOnClickListener(view -> sendComment());
 
         eventId = getIntent().getStringExtra(EventsActivity.EXTRA_EVENT_ID);
         if (eventId == null || eventId.trim().isEmpty()) {
@@ -86,6 +105,7 @@ public class EventDetailsActivity extends AppCompatActivity {
 
     private void bindViews() {
         nameText = findViewById(R.id.event_details_name);
+        categoryText = findViewById(R.id.event_details_category);
         dateTimeText = findViewById(R.id.event_details_date_time);
         locationText = findViewById(R.id.event_details_location);
         descriptionText = findViewById(R.id.event_details_description);
@@ -97,6 +117,28 @@ public class EventDetailsActivity extends AppCompatActivity {
         subscribeButton = findViewById(R.id.event_details_subscribe_button);
         favoriteButton = findViewById(R.id.event_details_favorite_button);
         subscribeProgress = findViewById(R.id.event_details_subscribe_progress);
+
+        commentInput = findViewById(R.id.add_comment_input);
+        sendCommentButton = findViewById(R.id.send_comment_button);
+        commentsEmptyMessage = findViewById(R.id.event_details_comments_empty);
+        commentsRecyclerView = findViewById(R.id.event_details_comments_list);
+    }
+
+    private void setupCommentsRecyclerView() {
+        String currentUserId = auth != null && auth.getCurrentUser() != null ? auth.getCurrentUser().getUid() : null;
+        commentAdapter = new CommentAdapter(currentUserId, new CommentAdapter.OnCommentActionListener() {
+            @Override
+            public void onEditComment(Comment comment) {
+                showEditCommentDialog(comment);
+            }
+
+            @Override
+            public void onDeleteComment(Comment comment) {
+                showDeleteCommentDialog(comment);
+            }
+        });
+        commentsRecyclerView.setLayoutManager(new LinearLayoutManager(this));
+        commentsRecyclerView.setAdapter(commentAdapter);
     }
 
     private void loadEvent() {
@@ -119,6 +161,7 @@ public class EventDetailsActivity extends AppCompatActivity {
                     showEvent(event);
                     checkSubscriptionStatus();
                     checkFavoriteStatus();
+                    loadComments();
                 })
                 .addOnFailureListener(exception -> {
                     Log.e(TAG, "Erro ao carregar detalhes do evento", exception);
@@ -327,6 +370,160 @@ public class EventDetailsActivity extends AppCompatActivity {
                 });
     }
 
+    private void loadComments() {
+        if (database == null || eventId == null) {
+            return;
+        }
+        database.collection("events")
+                .document(eventId)
+                .collection("comments")
+                .orderBy("createdAt", Query.Direction.ASCENDING)
+                .get()
+                .addOnSuccessListener(querySnapshot -> {
+                    List<Comment> comments = new ArrayList<>();
+                    if (querySnapshot != null) {
+                        for (QueryDocumentSnapshot doc : querySnapshot) {
+                            try {
+                                Comment comment = doc.toObject(Comment.class);
+                                if (comment != null) {
+                                    comment.setId(doc.getId());
+                                    comments.add(comment);
+                                }
+                            } catch (RuntimeException e) {
+                                Log.e(TAG, "Erro ao converter comentário: " + doc.getId(), e);
+                            }
+                        }
+                    }
+                    String currentUserId = auth != null && auth.getCurrentUser() != null ? auth.getCurrentUser().getUid() : null;
+                    commentAdapter = new CommentAdapter(currentUserId, new CommentAdapter.OnCommentActionListener() {
+                        @Override
+                        public void onEditComment(Comment comment) {
+                            showEditCommentDialog(comment);
+                        }
+
+                        @Override
+                        public void onDeleteComment(Comment comment) {
+                            showDeleteCommentDialog(comment);
+                        }
+                    });
+                    commentsRecyclerView.setAdapter(commentAdapter);
+                    commentAdapter.setComments(comments);
+                    commentsEmptyMessage.setVisibility(comments.isEmpty() ? View.VISIBLE : View.GONE);
+                })
+                .addOnFailureListener(e -> Log.e(TAG, "Erro ao carregar comentários", e));
+    }
+
+    private void sendComment() {
+        if (auth == null || auth.getCurrentUser() == null || database == null) {
+            openLogin();
+            return;
+        }
+
+        String commentText = commentInput.getText() != null ? commentInput.getText().toString().trim() : "";
+        if (commentText.isEmpty()) {
+            Toast.makeText(this, R.string.comment_empty_error, Toast.LENGTH_SHORT).show();
+            return;
+        }
+
+        FirebaseUser user = auth.getCurrentUser();
+        String userId = user.getUid();
+        String authorName = user.getDisplayName() != null && !user.getDisplayName().trim().isEmpty()
+                ? user.getDisplayName().trim()
+                : "Aluno";
+
+        Map<String, Object> commentData = new HashMap<>();
+        commentData.put("eventId", eventId);
+        commentData.put("userId", userId);
+        commentData.put("authorName", authorName);
+        commentData.put("text", commentText);
+        commentData.put("createdAt", FieldValue.serverTimestamp());
+
+        sendCommentButton.setEnabled(false);
+
+        database.collection("events")
+                .document(eventId)
+                .collection("comments")
+                .add(commentData)
+                .addOnSuccessListener(documentReference -> {
+                    sendCommentButton.setEnabled(true);
+                    commentInput.setText("");
+                    Toast.makeText(this, R.string.comment_added, Toast.LENGTH_SHORT).show();
+                    loadComments();
+                })
+                .addOnFailureListener(e -> {
+                    sendCommentButton.setEnabled(true);
+                    Log.e(TAG, "Erro ao enviar comentário", e);
+                    Toast.makeText(this, R.string.generic_error, Toast.LENGTH_SHORT).show();
+                });
+    }
+
+    private void showEditCommentDialog(Comment comment) {
+        EditText editInput = new EditText(this);
+        editInput.setText(comment.getText());
+        editInput.setSelection(comment.getText().length());
+        int padding = (int) (16 * getResources().getDisplayMetrics().density);
+        editInput.setPadding(padding, padding, padding, padding);
+
+        new MaterialAlertDialogBuilder(this)
+                .setTitle(R.string.edit_comment)
+                .setView(editInput)
+                .setPositiveButton(R.string.save_profile, (dialog, which) -> {
+                    String updatedText = editInput.getText().toString().trim();
+                    if (!updatedText.isEmpty()) {
+                        updateCommentText(comment, updatedText);
+                    }
+                })
+                .setNegativeButton(R.string.cancel, null)
+                .show();
+    }
+
+    private void updateCommentText(Comment comment, String updatedText) {
+        if (database == null || eventId == null || comment.getId() == null) {
+            return;
+        }
+        database.collection("events")
+                .document(eventId)
+                .collection("comments")
+                .document(comment.getId())
+                .update("text", updatedText)
+                .addOnSuccessListener(aVoid -> {
+                    Toast.makeText(this, R.string.comment_updated, Toast.LENGTH_SHORT).show();
+                    loadComments();
+                })
+                .addOnFailureListener(e -> {
+                    Log.e(TAG, "Erro ao atualizar comentário", e);
+                    Toast.makeText(this, R.string.generic_error, Toast.LENGTH_SHORT).show();
+                });
+    }
+
+    private void showDeleteCommentDialog(Comment comment) {
+        new MaterialAlertDialogBuilder(this)
+                .setTitle(R.string.delete_comment)
+                .setMessage(R.string.comment_delete_confirm)
+                .setPositiveButton(R.string.delete_comment, (dialog, which) -> deleteComment(comment))
+                .setNegativeButton(R.string.cancel, null)
+                .show();
+    }
+
+    private void deleteComment(Comment comment) {
+        if (database == null || eventId == null || comment.getId() == null) {
+            return;
+        }
+        database.collection("events")
+                .document(eventId)
+                .collection("comments")
+                .document(comment.getId())
+                .delete()
+                .addOnSuccessListener(aVoid -> {
+                    Toast.makeText(this, R.string.comment_deleted, Toast.LENGTH_SHORT).show();
+                    loadComments();
+                })
+                .addOnFailureListener(e -> {
+                    Log.e(TAG, "Erro ao excluir comentário", e);
+                    Toast.makeText(this, R.string.generic_error, Toast.LENGTH_SHORT).show();
+                });
+    }
+
     private String handleSubscribeError(Exception exception) {
         if (exception instanceof FirebaseFirestoreException) {
             FirebaseFirestoreException firestoreException = (FirebaseFirestoreException) exception;
@@ -371,6 +568,12 @@ public class EventDetailsActivity extends AppCompatActivity {
         detailsContent.setVisibility(View.VISIBLE);
 
         nameText.setText(valueOrFallback(event.getName()));
+        if (event.getCategory() != null && !event.getCategory().trim().isEmpty()) {
+            categoryText.setText(event.getCategory().trim());
+            categoryText.setVisibility(View.VISIBLE);
+        } else {
+            categoryText.setVisibility(View.GONE);
+        }
         dateTimeText.setText(getString(
                 R.string.event_date_time,
                 formatDate(event.getDate()),
