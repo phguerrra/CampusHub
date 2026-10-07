@@ -86,4 +86,22 @@
     <string name="favorite_events">Favoritos</string>
     <string name="favorite_events_empty">Você ainda não favoritou nenhum evento.</string>
     <string name="favorite_error">Não foi possível atualizar o favorito.</string>
+    <string name="event_category_label">Categoria</string>
+    <string name="event_category_required">Selecione uma categoria.</string>
+    <string name="category_academic">Acadêmico</string>
+    <string name="category_sports">Esportes</string>
+    <string name="category_tech">Tecnologia</string>
+    <string name="category_cultural">Cultural</string>
+    <string name="category_other">Outros</string>
+    <string name="comments_title">Comentários</string>
+    <string name="comments_empty">Nenhum comentário ainda. Seja o primeiro a comentar!</string>
+    <string name="add_comment_hint">Escreva um comentário...</string>
+    <string name="send_comment">Enviar</string>
+    <string name="edit_comment">Editar</string>
+    <string name="delete_comment">Excluir</string>
+    <string name="comment_added">Comentário publicado com sucesso!</string>
+    <string name="comment_updated">Comentário atualizado!</string>
+    <string name="comment_deleted">Comentário excluído.</string>
+    <string name="comment_empty_error">Digite um comentário antes de enviar.</string>
+    <string name="comment_delete_confirm">Deseja excluir este comentário?</string>
 </resources>
