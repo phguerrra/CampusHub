@@ -6,6 +6,7 @@ import android.util.Log;
 import android.view.View;
 import android.widget.EditText;
 import android.widget.ProgressBar;
+import android.widget.RatingBar;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -52,6 +53,12 @@ public class EventDetailsActivity extends AppCompatActivity {
     private MaterialButton favoriteButton;
     private ProgressBar subscribeProgress;
 
+    private TextView ratingSummaryText;
+    private TextView ratingNoticeText;
+    private View ratingInputContainer;
+    private RatingBar ratingBar;
+    private MaterialButton saveRatingButton;
+
     private TextInputEditText commentInput;
     private MaterialButton sendCommentButton;
     private TextView commentsEmptyMessage;
@@ -64,6 +71,8 @@ public class EventDetailsActivity extends AppCompatActivity {
     private Event currentEvent;
     private boolean isSubscribed = false;
     private boolean isFavorited = false;
+    private float userExistingRating = 0f;
+    private boolean hasUserRated = false;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -75,6 +84,7 @@ public class EventDetailsActivity extends AppCompatActivity {
         findViewById(R.id.event_details_back_button).setOnClickListener(view -> finish());
         retryButton.setOnClickListener(view -> loadEvent());
         sendCommentButton.setOnClickListener(view -> sendComment());
+        saveRatingButton.setOnClickListener(view -> saveRating());
 
         eventId = getIntent().getStringExtra(EventsActivity.EXTRA_EVENT_ID);
         if (eventId == null || eventId.trim().isEmpty()) {
@@ -117,6 +127,12 @@ public class EventDetailsActivity extends AppCompatActivity {
         subscribeButton = findViewById(R.id.event_details_subscribe_button);
         favoriteButton = findViewById(R.id.event_details_favorite_button);
         subscribeProgress = findViewById(R.id.event_details_subscribe_progress);
+
+        ratingSummaryText = findViewById(R.id.event_details_rating_summary);
+        ratingNoticeText = findViewById(R.id.event_details_rating_notice);
+        ratingInputContainer = findViewById(R.id.event_details_rating_input_container);
+        ratingBar = findViewById(R.id.event_details_rating_bar);
+        saveRatingButton = findViewById(R.id.event_details_save_rating_button);
 
         commentInput = findViewById(R.id.add_comment_input);
         sendCommentButton = findViewById(R.id.send_comment_button);
@@ -161,6 +177,7 @@ public class EventDetailsActivity extends AppCompatActivity {
                     showEvent(event);
                     checkSubscriptionStatus();
                     checkFavoriteStatus();
+                    loadRatingsAndCalculateAverage();
                     loadComments();
                 })
                 .addOnFailureListener(exception -> {
@@ -182,11 +199,13 @@ public class EventDetailsActivity extends AppCompatActivity {
                 .addOnSuccessListener(document -> {
                     isSubscribed = document.exists();
                     updateSubscribeButtonUI();
+                    updateUserRatingUI();
                 })
                 .addOnFailureListener(exception -> {
                     Log.e(TAG, "Erro ao checar status de inscrição", exception);
                     isSubscribed = false;
                     updateSubscribeButtonUI();
+                    updateUserRatingUI();
                 });
     }
 
@@ -370,6 +389,126 @@ public class EventDetailsActivity extends AppCompatActivity {
                 });
     }
 
+    private void loadRatingsAndCalculateAverage() {
+        if (database == null || eventId == null) {
+            return;
+        }
+        String currentUserId = auth != null && auth.getCurrentUser() != null ? auth.getCurrentUser().getUid() : null;
+
+        database.collection("events")
+                .document(eventId)
+                .collection("ratings")
+                .get()
+                .addOnSuccessListener(querySnapshot -> {
+                    float totalScore = 0f;
+                    int count = 0;
+                    hasUserRated = false;
+                    userExistingRating = 0f;
+
+                    if (querySnapshot != null) {
+                        for (QueryDocumentSnapshot doc : querySnapshot) {
+                            Double score = doc.getDouble("rating");
+                            if (score != null) {
+                                totalScore += score.floatValue();
+                                count++;
+                                if (currentUserId != null && currentUserId.equals(doc.getString("userId"))) {
+                                    hasUserRated = true;
+                                    userExistingRating = score.floatValue();
+                                }
+                            }
+                        }
+                    }
+
+                    if (count > 0) {
+                        float avg = totalScore / count;
+                        ratingSummaryText.setText(getString(R.string.rating_summary, avg, count));
+                    } else {
+                        ratingSummaryText.setText(R.string.rating_summary_empty);
+                    }
+
+                    updateUserRatingUI();
+                })
+                .addOnFailureListener(e -> {
+                    Log.e(TAG, "Erro ao carregar avaliações", e);
+                    ratingSummaryText.setText(R.string.rating_summary_empty);
+                    updateUserRatingUI();
+                });
+    }
+
+    private void updateUserRatingUI() {
+        if (currentEvent == null) {
+            return;
+        }
+
+        boolean isEnded = isEventEnded(currentEvent);
+
+        if (!isSubscribed) {
+            ratingNoticeText.setText(R.string.rating_user_notice_not_subscribed);
+            ratingInputContainer.setVisibility(View.GONE);
+        } else if (!isEnded) {
+            ratingNoticeText.setText(R.string.rating_user_notice_not_ended);
+            ratingInputContainer.setVisibility(View.GONE);
+        } else {
+            ratingNoticeText.setText(R.string.rating_user_notice_eligible);
+            ratingInputContainer.setVisibility(View.VISIBLE);
+            if (hasUserRated) {
+                ratingBar.setRating(userExistingRating);
+                saveRatingButton.setText(R.string.update_rating);
+            } else {
+                ratingBar.setRating(0f);
+                saveRatingButton.setText(R.string.save_rating);
+            }
+        }
+    }
+
+    private boolean isEventEnded(Event event) {
+        if (event == null || event.getDate() == null) {
+            return false;
+        }
+        long now = System.currentTimeMillis();
+        long eventTime = event.getDate().toDate().getTime();
+        return eventTime < now;
+    }
+
+    private void saveRating() {
+        if (auth == null || auth.getCurrentUser() == null || database == null) {
+            openLogin();
+            return;
+        }
+
+        float selectedScore = ratingBar.getRating();
+        if (selectedScore < 1.0f) {
+            Toast.makeText(this, R.string.rating_select_error, Toast.LENGTH_SHORT).show();
+            return;
+        }
+
+        String userId = auth.getCurrentUser().getUid();
+        DocumentReference ratingRef = database.collection("events")
+                .document(eventId)
+                .collection("ratings")
+                .document(userId);
+
+        Map<String, Object> ratingData = new HashMap<>();
+        ratingData.put("eventId", eventId);
+        ratingData.put("userId", userId);
+        ratingData.put("rating", selectedScore);
+        ratingData.put("updatedAt", FieldValue.serverTimestamp());
+
+        saveRatingButton.setEnabled(false);
+
+        ratingRef.set(ratingData)
+                .addOnSuccessListener(aVoid -> {
+                    saveRatingButton.setEnabled(true);
+                    Toast.makeText(this, R.string.rating_saved, Toast.LENGTH_SHORT).show();
+                    loadRatingsAndCalculateAverage();
+                })
+                .addOnFailureListener(e -> {
+                    saveRatingButton.setEnabled(true);
+                    Log.e(TAG, "Erro ao salvar avaliação", e);
+                    Toast.makeText(this, R.string.generic_error, Toast.LENGTH_SHORT).show();
+                });
+    }
+
     private void loadComments() {
         if (database == null || eventId == null) {
             return;
@@ -385,10 +524,8 @@ public class EventDetailsActivity extends AppCompatActivity {
                         for (QueryDocumentSnapshot doc : querySnapshot) {
                             try {
                                 Comment comment = doc.toObject(Comment.class);
-                                if (comment != null) {
-                                    comment.setId(doc.getId());
-                                    comments.add(comment);
-                                }
+                                comment.setId(doc.getId());
+                                comments.add(comment);
                             } catch (RuntimeException e) {
                                 Log.e(TAG, "Erro ao converter comentário: " + doc.getId(), e);
                             }

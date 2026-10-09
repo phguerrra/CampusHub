@@ -56,10 +56,11 @@
             android:layout_marginTop="12dp"
             android:hint="@string/event_category_label">
 
-            <AutoCompleteTextView
+            <com.google.android.material.textfield.MaterialAutoCompleteTextView
                 android:id="@+id/create_event_category_input"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
+                android:hint="@string/event_category_label"
                 android:inputType="none" />
         </com.google.android.material.textfield.TextInputLayout>
 

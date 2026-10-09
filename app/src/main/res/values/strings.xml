@@ -104,4 +104,14 @@
     <string name="comment_deleted">Comentário excluído.</string>
     <string name="comment_empty_error">Digite um comentário antes de enviar.</string>
     <string name="comment_delete_confirm">Deseja excluir este comentário?</string>
+    <string name="rating_title">Avaliação do evento</string>
+    <string name="rating_summary">Média: %1$.1f / 5 (%2$d avaliações)</string>
+    <string name="rating_summary_empty">Ainda não possui avaliações</string>
+    <string name="rating_user_notice_not_subscribed">Increva-se para poder avaliar este evento após o encerramento.</string>
+    <string name="rating_user_notice_not_ended">A avaliação estará disponível após o encerramento do evento.</string>
+    <string name="rating_user_notice_eligible">Atribua uma nota de 1 a 5 para este evento:</string>
+    <string name="save_rating">Salvar avaliação</string>
+    <string name="update_rating">Alterar avaliação</string>
+    <string name="rating_saved">Avaliação salva com sucesso!</string>
+    <string name="rating_select_error">Selecione uma nota de 1 a 5 estrelas.</string>
 </resources>

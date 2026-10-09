@@ -115,6 +115,16 @@
                 tools:text="100 vagas disponíveis" />
 
             <TextView
+                android:id="@+id/event_details_rating_summary"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="12dp"
+                android:textAppearance="@style/TextAppearance.MaterialComponents.Body2"
+                android:textColor="@color/brand_primary"
+                android:textStyle="bold"
+                tools:text="Média: ⭐ 4.5 / 5 (12 avaliações)" />
+
+            <TextView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="32dp"
@@ -157,6 +167,57 @@
                 android:layout_gravity="center_horizontal"
                 android:layout_marginTop="12dp"
                 android:visibility="gone" />
+
+            <View
+                android:layout_width="match_parent"
+                android:layout_height="1dp"
+                android:layout_marginTop="32dp"
+                android:layout_marginBottom="24dp"
+                android:background="@color/text_secondary" />
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="@string/rating_title"
+                android:textAppearance="@style/TextAppearance.MaterialComponents.Headline6"
+                android:textColor="@color/text_primary"
+                android:textStyle="bold" />
+
+            <TextView
+                android:id="@+id/event_details_rating_notice"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:textAppearance="@style/TextAppearance.MaterialComponents.Body2"
+                android:textColor="@color/text_secondary"
+                tools:text="Apenas alunos inscritos podem avaliar este evento após o encerramento." />
+
+            <LinearLayout
+                android:id="@+id/event_details_rating_input_container"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="12dp"
+                android:gravity="center_vertical"
+                android:orientation="vertical"
+                android:visibility="gone"
+                tools:visibility="visible">
+
+                <RatingBar
+                    android:id="@+id/event_details_rating_bar"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_gravity="center_horizontal"
+                    android:isIndicator="false"
+                    android:numStars="5"
+                    android:stepSize="1.0" />
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/event_details_save_rating_button"
+                    android:layout_width="match_parent"
+                    android:layout_height="48dp"
+                    android:layout_marginTop="12dp"
+                    android:text="@string/save_rating" />
+            </LinearLayout>
 
             <View
                 android:layout_width="match_parent"
