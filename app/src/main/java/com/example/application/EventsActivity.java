@@ -2,6 +2,8 @@ package com.example.application;
 
 import android.content.Intent;
 import android.os.Bundle;
+import android.text.Editable;
+import android.text.TextWatcher;
 import android.util.Log;
 import android.view.View;
 import android.widget.ProgressBar;
@@ -15,6 +17,7 @@ import androidx.recyclerview.widget.RecyclerView;
 import com.google.android.gms.tasks.Task;
 import com.google.android.gms.tasks.Tasks;
 import com.google.android.material.button.MaterialButtonToggleGroup;
+import com.google.android.material.textfield.TextInputEditText;
 import com.google.firebase.FirebaseApp;
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.firestore.DocumentSnapshot;
@@ -28,6 +31,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Locale;
 
 public class EventsActivity extends AppCompatActivity {
     private static final String TAG = "EventsActivity";
@@ -40,10 +44,14 @@ public class EventsActivity extends AppCompatActivity {
     private EventAdapter eventAdapter;
     private TextView emptyMessage;
     private ProgressBar eventsProgress;
+    private TextInputEditText searchInput;
+
     private FirebaseAuth auth;
     private FirebaseFirestore database;
 
     private int currentFilterMode = FILTER_ALL;
+    private final List<Event> fullLoadedEventsList = new ArrayList<>();
+    private String currentSearchQuery = "";
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -56,6 +64,7 @@ public class EventsActivity extends AppCompatActivity {
         RecyclerView eventsList = findViewById(R.id.events_list);
         emptyMessage = findViewById(R.id.events_empty_message);
         eventsProgress = findViewById(R.id.events_progress);
+        searchInput = findViewById(R.id.search_events_input);
         MaterialButtonToggleGroup filterToggle = findViewById(R.id.events_filter_toggle);
         eventAdapter = new EventAdapter(this::openEventDetails);
 
@@ -72,6 +81,22 @@ public class EventsActivity extends AppCompatActivity {
                     currentFilterMode = FILTER_ALL;
                 }
                 refreshEventsList();
+            }
+        });
+
+        searchInput.addTextChangedListener(new TextWatcher() {
+            @Override
+            public void beforeTextChanged(CharSequence s, int start, int count, int after) {
+            }
+
+            @Override
+            public void onTextChanged(CharSequence s, int start, int before, int count) {
+                currentSearchQuery = s != null ? s.toString().trim().toLowerCase(Locale.getDefault()) : "";
+                applyFiltersAndSearch();
+            }
+
+            @Override
+            public void afterTextChanged(Editable s) {
             }
         });
 
@@ -309,6 +334,35 @@ public class EventsActivity extends AppCompatActivity {
         });
     }
 
+    private void applyFiltersAndSearch() {
+        List<Event> filtered = new ArrayList<>();
+        for (Event event : fullLoadedEventsList) {
+            boolean matchesSearch = currentSearchQuery.isEmpty() ||
+                    (event.getName() != null && event.getName().toLowerCase(Locale.getDefault()).contains(currentSearchQuery));
+            if (matchesSearch) {
+                filtered.add(event);
+            }
+        }
+
+        eventAdapter.setEvents(filtered);
+
+        if (fullLoadedEventsList.isEmpty()) {
+            if (currentFilterMode == FILTER_MY_EVENTS) {
+                emptyMessage.setText(R.string.my_events_empty);
+            } else if (currentFilterMode == FILTER_FAVORITES) {
+                emptyMessage.setText(R.string.favorite_events_empty);
+            } else {
+                emptyMessage.setText(R.string.events_empty);
+            }
+            emptyMessage.setVisibility(View.VISIBLE);
+        } else if (filtered.isEmpty()) {
+            emptyMessage.setText(R.string.search_empty_results);
+            emptyMessage.setVisibility(View.VISIBLE);
+        } else {
+            emptyMessage.setVisibility(View.GONE);
+        }
+    }
+
     private void handleFirestoreError(Exception exception) {
         String errorTextMsg;
         if (exception instanceof FirebaseFirestoreException) {
@@ -345,8 +399,11 @@ public class EventsActivity extends AppCompatActivity {
     }
 
     private void showEvents(List<Event> events) {
-        eventAdapter.setEvents(events);
-        emptyMessage.setVisibility(events.isEmpty() ? View.VISIBLE : View.GONE);
+        fullLoadedEventsList.clear();
+        if (events != null) {
+            fullLoadedEventsList.addAll(events);
+        }
+        applyFiltersAndSearch();
     }
 
     private void signOut() {

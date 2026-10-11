@@ -17,13 +17,14 @@
         android:paddingEnd="24dp"
         android:paddingBottom="32dp">
 
-        <com.google.android.material.button.MaterialButton
+        <ImageButton
             android:id="@+id/event_details_back_button"
-            style="@style/Widget.MaterialComponents.Button.TextButton"
-            android:layout_width="wrap_content"
+            android:layout_width="48dp"
             android:layout_height="48dp"
-            android:text="@string/back_to_events"
-            android:textColor="@color/brand_primary" />
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:contentDescription="@string/back_to_events"
+            android:src="@drawable/ic_arrow_back"
+            app:tint="@color/brand_primary" />
 
         <ProgressBar
             android:id="@+id/event_details_progress"

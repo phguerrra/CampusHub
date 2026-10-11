@@ -476,7 +476,7 @@ public class EventDetailsActivity extends AppCompatActivity {
                 setStarRating((int) userExistingRating);
                 saveRatingButton.setText(R.string.update_rating);
             } else {
-                setStarRating(0);
+                setStarRating(5);
                 saveRatingButton.setText(R.string.save_rating);
             }
         }
