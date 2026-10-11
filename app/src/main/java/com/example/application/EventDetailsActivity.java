@@ -5,8 +5,8 @@ import android.os.Bundle;
 import android.util.Log;
 import android.view.View;
 import android.widget.EditText;
+import android.widget.ImageButton;
 import android.widget.ProgressBar;
-import android.widget.RatingBar;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -56,7 +56,7 @@ public class EventDetailsActivity extends AppCompatActivity {
     private TextView ratingSummaryText;
     private TextView ratingNoticeText;
     private View ratingInputContainer;
-    private RatingBar ratingBar;
+    private ImageButton star1, star2, star3, star4, star5;
     private MaterialButton saveRatingButton;
 
     private TextInputEditText commentInput;
@@ -73,6 +73,7 @@ public class EventDetailsActivity extends AppCompatActivity {
     private boolean isFavorited = false;
     private float userExistingRating = 0f;
     private boolean hasUserRated = false;
+    private int selectedRatingValue = 0;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -131,13 +132,33 @@ public class EventDetailsActivity extends AppCompatActivity {
         ratingSummaryText = findViewById(R.id.event_details_rating_summary);
         ratingNoticeText = findViewById(R.id.event_details_rating_notice);
         ratingInputContainer = findViewById(R.id.event_details_rating_input_container);
-        ratingBar = findViewById(R.id.event_details_rating_bar);
         saveRatingButton = findViewById(R.id.event_details_save_rating_button);
+
+        star1 = findViewById(R.id.star_1);
+        star2 = findViewById(R.id.star_2);
+        star3 = findViewById(R.id.star_3);
+        star4 = findViewById(R.id.star_4);
+        star5 = findViewById(R.id.star_5);
+
+        star1.setOnClickListener(v -> setStarRating(1));
+        star2.setOnClickListener(v -> setStarRating(2));
+        star3.setOnClickListener(v -> setStarRating(3));
+        star4.setOnClickListener(v -> setStarRating(4));
+        star5.setOnClickListener(v -> setStarRating(5));
 
         commentInput = findViewById(R.id.add_comment_input);
         sendCommentButton = findViewById(R.id.send_comment_button);
         commentsEmptyMessage = findViewById(R.id.event_details_comments_empty);
         commentsRecyclerView = findViewById(R.id.event_details_comments_list);
+    }
+
+    private void setStarRating(int rating) {
+        selectedRatingValue = rating;
+        star1.setImageResource(rating >= 1 ? R.drawable.ic_star : R.drawable.ic_star_border);
+        star2.setImageResource(rating >= 2 ? R.drawable.ic_star : R.drawable.ic_star_border);
+        star3.setImageResource(rating >= 3 ? R.drawable.ic_star : R.drawable.ic_star_border);
+        star4.setImageResource(rating >= 4 ? R.drawable.ic_star : R.drawable.ic_star_border);
+        star5.setImageResource(rating >= 5 ? R.drawable.ic_star : R.drawable.ic_star_border);
     }
 
     private void setupCommentsRecyclerView() {
@@ -452,10 +473,10 @@ public class EventDetailsActivity extends AppCompatActivity {
             ratingNoticeText.setText(R.string.rating_user_notice_eligible);
             ratingInputContainer.setVisibility(View.VISIBLE);
             if (hasUserRated) {
-                ratingBar.setRating(userExistingRating);
+                setStarRating((int) userExistingRating);
                 saveRatingButton.setText(R.string.update_rating);
             } else {
-                ratingBar.setRating(0f);
+                setStarRating(0);
                 saveRatingButton.setText(R.string.save_rating);
             }
         }
@@ -476,8 +497,7 @@ public class EventDetailsActivity extends AppCompatActivity {
             return;
         }
 
-        float selectedScore = ratingBar.getRating();
-        if (selectedScore < 1.0f) {
+        if (selectedRatingValue < 1 || selectedRatingValue > 5) {
             Toast.makeText(this, R.string.rating_select_error, Toast.LENGTH_SHORT).show();
             return;
         }
@@ -491,7 +511,7 @@ public class EventDetailsActivity extends AppCompatActivity {
         Map<String, Object> ratingData = new HashMap<>();
         ratingData.put("eventId", eventId);
         ratingData.put("userId", userId);
-        ratingData.put("rating", selectedScore);
+        ratingData.put("rating", (double) selectedRatingValue);
         ratingData.put("updatedAt", FieldValue.serverTimestamp());
 
         saveRatingButton.setEnabled(false);

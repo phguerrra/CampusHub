@@ -202,14 +202,59 @@
                 android:visibility="gone"
                 tools:visibility="visible">
 
-                <RatingBar
-                    android:id="@+id/event_details_rating_bar"
+                <LinearLayout
+                    android:id="@+id/rating_stars_layout"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:layout_gravity="center_horizontal"
-                    android:isIndicator="false"
-                    android:numStars="5"
-                    android:stepSize="1.0" />
+                    android:gravity="center"
+                    android:orientation="horizontal">
+
+                    <ImageButton
+                        android:id="@+id/star_1"
+                        android:layout_width="48dp"
+                        android:layout_height="48dp"
+                        android:background="?attr/selectableItemBackgroundBorderless"
+                        android:contentDescription="1 estrela"
+                        android:src="@drawable/ic_star_border"
+                        app:tint="#F2A94A" />
+
+                    <ImageButton
+                        android:id="@+id/star_2"
+                        android:layout_width="48dp"
+                        android:layout_height="48dp"
+                        android:background="?attr/selectableItemBackgroundBorderless"
+                        android:contentDescription="2 estrelas"
+                        android:src="@drawable/ic_star_border"
+                        app:tint="#F2A94A" />
+
+                    <ImageButton
+                        android:id="@+id/star_3"
+                        android:layout_width="48dp"
+                        android:layout_height="48dp"
+                        android:background="?attr/selectableItemBackgroundBorderless"
+                        android:contentDescription="3 estrelas"
+                        android:src="@drawable/ic_star_border"
+                        app:tint="#F2A94A" />
+
+                    <ImageButton
+                        android:id="@+id/star_4"
+                        android:layout_width="48dp"
+                        android:layout_height="48dp"
+                        android:background="?attr/selectableItemBackgroundBorderless"
+                        android:contentDescription="4 estrelas"
+                        android:src="@drawable/ic_star_border"
+                        app:tint="#F2A94A" />
+
+                    <ImageButton
+                        android:id="@+id/star_5"
+                        android:layout_width="48dp"
+                        android:layout_height="48dp"
+                        android:background="?attr/selectableItemBackgroundBorderless"
+                        android:contentDescription="5 estrelas"
+                        android:src="@drawable/ic_star_border"
+                        app:tint="#F2A94A" />
+                </LinearLayout>
 
                 <com.google.android.material.button.MaterialButton
                     android:id="@+id/event_details_save_rating_button"
