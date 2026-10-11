@@ -4,6 +4,7 @@ import android.content.Intent;
 import android.os.Bundle;
 import android.view.View;
 import android.view.inputmethod.EditorInfo;
+import android.widget.ImageButton;
 import android.widget.ProgressBar;
 import android.widget.TextView;
 import android.widget.Toast;
@@ -24,7 +25,7 @@ public class ProfileActivity extends AppCompatActivity {
     private TextView emailText;
     private TextView profileError;
     private MaterialButton saveButton;
-    private MaterialButton backButton;
+    private ImageButton backButton;
     private ProgressBar profileProgress;
 
     private FirebaseAuth auth;

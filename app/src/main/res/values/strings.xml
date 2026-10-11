@@ -114,4 +114,8 @@
     <string name="update_rating">Alterar avaliação</string>
     <string name="rating_saved">Avaliação salva com sucesso!</string>
     <string name="rating_select_error">Selecione uma nota de 1 a 5 estrelas.</string>
+    <string name="search_events_hint">Buscar eventos por título...</string>
+    <string name="search_empty_results">Nenhum evento encontrado para a busca.</string>
+    <string name="status_upcoming">Próximo</string>
+    <string name="status_ended">Encerrado</string>
 </resources>

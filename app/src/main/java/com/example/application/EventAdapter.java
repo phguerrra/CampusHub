@@ -1,11 +1,13 @@
 package com.example.application;
 
+import android.content.res.ColorStateList;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.TextView;
 
 import androidx.annotation.NonNull;
+import androidx.core.content.ContextCompat;
 import androidx.recyclerview.widget.RecyclerView;
 
 import java.text.DateFormat;
@@ -28,7 +30,9 @@ public class EventAdapter extends RecyclerView.Adapter<EventAdapter.EventViewHol
 
     public void setEvents(List<Event> updatedEvents) {
         events.clear();
-        events.addAll(updatedEvents);
+        if (updatedEvents != null) {
+            events.addAll(updatedEvents);
+        }
         notifyDataSetChanged();
     }
 
@@ -53,6 +57,8 @@ public class EventAdapter extends RecyclerView.Adapter<EventAdapter.EventViewHol
     }
 
     static class EventViewHolder extends RecyclerView.ViewHolder {
+        private final TextView categoryBadge;
+        private final TextView statusBadge;
         private final TextView nameText;
         private final TextView dateTimeText;
         private final TextView locationText;
@@ -61,6 +67,8 @@ public class EventAdapter extends RecyclerView.Adapter<EventAdapter.EventViewHol
 
         EventViewHolder(@NonNull View itemView) {
             super(itemView);
+            categoryBadge = itemView.findViewById(R.id.event_category_badge);
+            statusBadge = itemView.findViewById(R.id.event_status_badge);
             nameText = itemView.findViewById(R.id.event_name);
             dateTimeText = itemView.findViewById(R.id.event_date_time);
             locationText = itemView.findViewById(R.id.event_location);
@@ -69,6 +77,26 @@ public class EventAdapter extends RecyclerView.Adapter<EventAdapter.EventViewHol
         }
 
         void bind(Event event) {
+            String category = event.getCategory() != null && !event.getCategory().trim().isEmpty()
+                    ? event.getCategory().trim()
+                    : "Geral";
+            categoryBadge.setText(category);
+
+            boolean isEnded = isEventEnded(event);
+            if (isEnded) {
+                statusBadge.setText(R.string.status_ended);
+                statusBadge.setBackgroundTintList(ColorStateList.valueOf(
+                        ContextCompat.getColor(itemView.getContext(), R.color.badge_ended_bg)));
+                statusBadge.setTextColor(
+                        ContextCompat.getColor(itemView.getContext(), R.color.badge_ended_text));
+            } else {
+                statusBadge.setText(R.string.status_upcoming);
+                statusBadge.setBackgroundTintList(ColorStateList.valueOf(
+                        ContextCompat.getColor(itemView.getContext(), R.color.badge_upcoming_bg)));
+                statusBadge.setTextColor(
+                        ContextCompat.getColor(itemView.getContext(), R.color.badge_upcoming_text));
+            }
+
             nameText.setText(event.getName());
             dateTimeText.setText(itemView.getContext().getString(
                     R.string.event_date_time, formatDate(event), valueOrDash(event.getTime())));
@@ -78,6 +106,15 @@ public class EventAdapter extends RecyclerView.Adapter<EventAdapter.EventViewHol
                     R.plurals.event_available_slots,
                     (int) event.getAvailableSlots(),
                     event.getAvailableSlots()));
+        }
+
+        private boolean isEventEnded(Event event) {
+            if (event.getDate() == null) {
+                return false;
+            }
+            long now = System.currentTimeMillis();
+            long eventTime = event.getDate().toDate().getTime();
+            return eventTime < now;
         }
 
         private String formatDate(Event event) {

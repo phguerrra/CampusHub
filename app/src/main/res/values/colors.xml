@@ -1,13 +1,21 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <color name="brand_primary">#146C43</color>
-    <color name="brand_primary_dark">#0E4F32</color>
+    <color name="brand_primary">#0F766E</color>
+    <color name="brand_primary_dark">#0D5C56</color>
     <color name="brand_secondary">#D97706</color>
-    <color name="surface">#FFFDFC</color>
-    <color name="surface_variant">#F1F5F2</color>
-    <color name="text_primary">#17211B</color>
-    <color name="text_secondary">#58635C</color>
-    <color name="divider">#C7CEC9</color>
-    <color name="error">#B3261E</color>
-    <color name="white">#FFFFFFFF</color>
+    <color name="surface">#F8FAFC</color>
+    <color name="surface_variant">#FFFFFF</color>
+    <color name="text_primary">#0F172A</color>
+    <color name="text_secondary">#475569</color>
+    <color name="divider">#E2E8F0</color>
+    <color name="error">#DC2626</color>
+    <color name="white">#FFFFFF</color>
+
+    <!-- Badges & Statuses -->
+    <color name="badge_category_bg">#E0F2FE</color>
+    <color name="badge_category_text">#0369A1</color>
+    <color name="badge_upcoming_bg">#DCFCE7</color>
+    <color name="badge_upcoming_text">#15803D</color>
+    <color name="badge_ended_bg">#F1F5F9</color>
+    <color name="badge_ended_text">#64748B</color>
 </resources>
