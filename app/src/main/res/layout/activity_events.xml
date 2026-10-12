@@ -6,10 +6,10 @@
     android:layout_height="match_parent"
     android:background="@color/surface"
     android:orientation="vertical"
-    android:paddingStart="24dp"
-    android:paddingTop="32dp"
-    android:paddingEnd="24dp"
-    android:paddingBottom="24dp"
+    android:paddingStart="20dp"
+    android:paddingTop="28dp"
+    android:paddingEnd="20dp"
+    android:paddingBottom="20dp"
     tools:context=".EventsActivity">
 
     <LinearLayout
@@ -52,7 +52,7 @@
         android:id="@+id/events_subtitle"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="8dp"
+        android:layout_marginTop="4dp"
         android:text="@string/events_subtitle"
         android:textAppearance="@style/TextAppearance.MaterialComponents.Body1"
         android:textColor="@color/text_secondary" />
@@ -61,16 +61,21 @@
         android:id="@+id/create_event_button"
         android:layout_width="match_parent"
         android:layout_height="52dp"
-        android:layout_marginTop="20dp"
-        android:text="@string/create_event" />
+        android:layout_marginTop="16dp"
+        android:text="@string/create_event"
+        app:cornerRadius="16dp" />
 
     <com.google.android.material.textfield.TextInputLayout
         android:id="@+id/search_events_layout"
         style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="16dp"
+        android:layout_marginTop="12dp"
         android:hint="@string/search_events_hint"
+        app:boxCornerRadiusBottomEnd="16dp"
+        app:boxCornerRadiusBottomStart="16dp"
+        app:boxCornerRadiusTopEnd="16dp"
+        app:boxCornerRadiusTopStart="16dp"
         app:endIconMode="clear_text"
         app:startIconDrawable="@drawable/ic_search">
 
@@ -86,7 +91,7 @@
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="12dp"
+        android:layout_marginTop="10dp"
         android:baselineAligned="false"
         android:orientation="horizontal">
 
@@ -97,7 +102,11 @@
             android:layout_height="wrap_content"
             android:layout_weight="1"
             android:layout_marginEnd="6dp"
-            android:hint="@string/filter_category_hint">
+            android:hint="@string/filter_category_hint"
+            app:boxCornerRadiusBottomEnd="12dp"
+            app:boxCornerRadiusBottomStart="12dp"
+            app:boxCornerRadiusTopEnd="12dp"
+            app:boxCornerRadiusTopStart="12dp">
 
             <com.google.android.material.textfield.MaterialAutoCompleteTextView
                 android:id="@+id/filter_category_input"
@@ -114,7 +123,11 @@
             android:layout_height="wrap_content"
             android:layout_weight="1"
             android:layout_marginStart="6dp"
-            android:hint="@string/filter_status_hint">
+            android:hint="@string/filter_status_hint"
+            app:boxCornerRadiusBottomEnd="12dp"
+            app:boxCornerRadiusBottomStart="12dp"
+            app:boxCornerRadiusTopEnd="12dp"
+            app:boxCornerRadiusTopStart="12dp">
 
             <com.google.android.material.textfield.MaterialAutoCompleteTextView
                 android:id="@+id/filter_status_input"
@@ -125,55 +138,51 @@
         </com.google.android.material.textfield.TextInputLayout>
     </LinearLayout>
 
-    <HorizontalScrollView
+    <com.google.android.material.button.MaterialButtonToggleGroup
+        android:id="@+id/events_filter_toggle"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="16dp"
-        android:overScrollMode="never"
-        android:scrollbars="none">
+        android:layout_marginTop="12dp"
+        app:checkedButton="@id/filter_all_events"
+        app:selectionRequired="true"
+        app:singleSelection="true">
 
-        <com.google.android.material.button.MaterialButtonToggleGroup
-            android:id="@+id/events_filter_toggle"
-            android:layout_width="wrap_content"
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/filter_all_events"
+            style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+            android:layout_width="0dp"
             android:layout_height="wrap_content"
-            app:checkedButton="@id/filter_all_events"
-            app:selectionRequired="true"
-            app:singleSelection="true">
+            android:layout_weight="1"
+            android:paddingStart="4dp"
+            android:paddingEnd="4dp"
+            android:text="@string/all_events" />
 
-            <com.google.android.material.button.MaterialButton
-                android:id="@+id/filter_all_events"
-                style="@style/Widget.MaterialComponents.Button.OutlinedButton"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:paddingStart="16dp"
-                android:paddingEnd="16dp"
-                android:text="@string/all_events" />
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/filter_my_events"
+            style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:paddingStart="4dp"
+            android:paddingEnd="4dp"
+            android:text="@string/my_events" />
 
-            <com.google.android.material.button.MaterialButton
-                android:id="@+id/filter_my_events"
-                style="@style/Widget.MaterialComponents.Button.OutlinedButton"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:paddingStart="16dp"
-                android:paddingEnd="16dp"
-                android:text="@string/my_events" />
-
-            <com.google.android.material.button.MaterialButton
-                android:id="@+id/filter_favorite_events"
-                style="@style/Widget.MaterialComponents.Button.OutlinedButton"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:paddingStart="16dp"
-                android:paddingEnd="16dp"
-                android:text="@string/favorite_events" />
-        </com.google.android.material.button.MaterialButtonToggleGroup>
-    </HorizontalScrollView>
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/filter_favorite_events"
+            style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:paddingStart="4dp"
+            android:paddingEnd="4dp"
+            android:text="@string/favorite_events" />
+    </com.google.android.material.button.MaterialButtonToggleGroup>
 
     <FrameLayout
         android:id="@+id/events_content"
         android:layout_width="match_parent"
         android:layout_height="0dp"
-        android:layout_marginTop="16dp"
+        android:layout_marginTop="12dp"
         android:layout_weight="1">
 
         <androidx.recyclerview.widget.RecyclerView

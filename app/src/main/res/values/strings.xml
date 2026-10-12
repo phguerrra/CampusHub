@@ -70,8 +70,8 @@
     <string name="unsubscribe_error">Não foi possível cancelar a inscrição. Tente novamente.</string>
     <string name="already_subscribed">Você já está inscrito neste evento.</string>
     <string name="no_slots_left">As vagas deste evento se esgotaram.</string>
-    <string name="all_events">Todos os eventos</string>
-    <string name="my_events">Minhas inscrições</string>
+    <string name="all_events">Todos</string>
+    <string name="my_events">Inscritos</string>
     <string name="my_events_empty">Você ainda não está inscrito em nenhum evento.</string>
     <string name="forgot_password">Esqueceu a senha?</string>
     <string name="reset_password_title">Recuperar senha</string>
