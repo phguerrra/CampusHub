@@ -6,6 +6,7 @@ import android.text.Editable;
 import android.text.TextWatcher;
 import android.util.Log;
 import android.view.View;
+import android.widget.ArrayAdapter;
 import android.widget.ProgressBar;
 import android.widget.TextView;
 import android.widget.Toast;
@@ -17,6 +18,7 @@ import androidx.recyclerview.widget.RecyclerView;
 import com.google.android.gms.tasks.Task;
 import com.google.android.gms.tasks.Tasks;
 import com.google.android.material.button.MaterialButtonToggleGroup;
+import com.google.android.material.textfield.MaterialAutoCompleteTextView;
 import com.google.android.material.textfield.TextInputEditText;
 import com.google.firebase.FirebaseApp;
 import com.google.firebase.auth.FirebaseAuth;
@@ -45,6 +47,8 @@ public class EventsActivity extends AppCompatActivity {
     private TextView emptyMessage;
     private ProgressBar eventsProgress;
     private TextInputEditText searchInput;
+    private MaterialAutoCompleteTextView categoryFilterInput;
+    private MaterialAutoCompleteTextView statusFilterInput;
 
     private FirebaseAuth auth;
     private FirebaseFirestore database;
@@ -52,6 +56,8 @@ public class EventsActivity extends AppCompatActivity {
     private int currentFilterMode = FILTER_ALL;
     private final List<Event> fullLoadedEventsList = new ArrayList<>();
     private String currentSearchQuery = "";
+    private String selectedCategoryFilter = "";
+    private String selectedStatusFilter = "";
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -65,11 +71,15 @@ public class EventsActivity extends AppCompatActivity {
         emptyMessage = findViewById(R.id.events_empty_message);
         eventsProgress = findViewById(R.id.events_progress);
         searchInput = findViewById(R.id.search_events_input);
+        categoryFilterInput = findViewById(R.id.filter_category_input);
+        statusFilterInput = findViewById(R.id.filter_status_input);
         MaterialButtonToggleGroup filterToggle = findViewById(R.id.events_filter_toggle);
         eventAdapter = new EventAdapter(this::openEventDetails);
 
         eventsList.setLayoutManager(new LinearLayoutManager(this));
         eventsList.setAdapter(eventAdapter);
+
+        setupFilterDropdowns();
 
         filterToggle.addOnButtonCheckedListener((group, checkedId, isChecked) -> {
             if (isChecked) {
@@ -108,6 +118,53 @@ public class EventsActivity extends AppCompatActivity {
         }
         auth = FirebaseAuth.getInstance();
         database = FirebaseFirestore.getInstance();
+    }
+
+    private void setupFilterDropdowns() {
+        String[] categories = new String[]{
+                getString(R.string.all_categories),
+                getString(R.string.category_academic),
+                getString(R.string.category_sports),
+                getString(R.string.category_tech),
+                getString(R.string.category_cultural),
+                getString(R.string.category_other)
+        };
+        ArrayAdapter<String> categoryAdapter = new ArrayAdapter<>(
+                this,
+                android.R.layout.simple_dropdown_item_1line,
+                categories
+        );
+        categoryFilterInput.setAdapter(categoryAdapter);
+        categoryFilterInput.setOnItemClickListener((parent, view, position, id) -> {
+            String selected = categories[position];
+            if (selected.equals(getString(R.string.all_categories))) {
+                selectedCategoryFilter = "";
+            } else {
+                selectedCategoryFilter = selected;
+            }
+            applyFiltersAndSearch();
+        });
+
+        String[] statuses = new String[]{
+                getString(R.string.all_statuses),
+                getString(R.string.status_upcoming),
+                getString(R.string.status_ended)
+        };
+        ArrayAdapter<String> statusAdapter = new ArrayAdapter<>(
+                this,
+                android.R.layout.simple_dropdown_item_1line,
+                statuses
+        );
+        statusFilterInput.setAdapter(statusAdapter);
+        statusFilterInput.setOnItemClickListener((parent, view, position, id) -> {
+            String selected = statuses[position];
+            if (selected.equals(getString(R.string.all_statuses))) {
+                selectedStatusFilter = "";
+            } else {
+                selectedStatusFilter = selected;
+            }
+            applyFiltersAndSearch();
+        });
     }
 
     @Override
@@ -336,12 +393,37 @@ public class EventsActivity extends AppCompatActivity {
 
     private void applyFiltersAndSearch() {
         List<Event> filtered = new ArrayList<>();
+        long now = System.currentTimeMillis();
+
         for (Event event : fullLoadedEventsList) {
+            // Search Query filter
             boolean matchesSearch = currentSearchQuery.isEmpty() ||
                     (event.getName() != null && event.getName().toLowerCase(Locale.getDefault()).contains(currentSearchQuery));
-            if (matchesSearch) {
-                filtered.add(event);
+
+            if (!matchesSearch) {
+                continue;
             }
+
+            // Category filter
+            if (!selectedCategoryFilter.isEmpty()) {
+                String cat = event.getCategory() != null ? event.getCategory().trim() : "";
+                if (!cat.equalsIgnoreCase(selectedCategoryFilter)) {
+                    continue;
+                }
+            }
+
+            // Status filter (Próximos vs Encerrados)
+            if (!selectedStatusFilter.isEmpty()) {
+                boolean isEnded = event.getDate() != null && event.getDate().toDate().getTime() < now;
+                if (selectedStatusFilter.equals(getString(R.string.status_upcoming)) && isEnded) {
+                    continue;
+                }
+                if (selectedStatusFilter.equals(getString(R.string.status_ended)) && !isEnded) {
+                    continue;
+                }
+            }
+
+            filtered.add(event);
         }
 
         eventAdapter.setEvents(filtered);

@@ -118,4 +118,8 @@
     <string name="search_empty_results">Nenhum evento encontrado para a busca.</string>
     <string name="status_upcoming">Próximo</string>
     <string name="status_ended">Encerrado</string>
+    <string name="filter_category_hint">Categoria</string>
+    <string name="filter_status_hint">Situação</string>
+    <string name="all_categories">Todas as categorias</string>
+    <string name="all_statuses">Todas as situações</string>
 </resources>
