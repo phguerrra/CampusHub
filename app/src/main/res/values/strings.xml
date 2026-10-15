@@ -122,4 +122,10 @@
     <string name="filter_status_hint">Situação</string>
     <string name="all_categories">Todas as categorias</string>
     <string name="all_statuses">Todas as situações</string>
+    <string name="event_latitude_label">Latitude (ex: -23.5505)</string>
+    <string name="event_longitude_label">Longitude (ex: -46.6333)</string>
+    <string name="open_map_button">Como chegar</string>
+    <string name="location_coordinates">Coordenadas: %1$.6f, %2$.6f</string>
+    <string name="event_location_title">Localização do evento</string>
+    <string name="map_location_unavailable">Localização exata em mapa indisponível para este evento.</string>
 </resources>

@@ -3,6 +3,8 @@ package com.example.application;
 import android.app.DatePickerDialog;
 import android.app.TimePickerDialog;
 import android.content.Intent;
+import android.location.Address;
+import android.location.Geocoder;
 import android.os.Bundle;
 import android.util.Log;
 import android.view.View;
@@ -28,8 +30,11 @@ import java.text.DateFormat;
 import java.text.SimpleDateFormat;
 import java.util.Calendar;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 public class CreateEventActivity extends AppCompatActivity {
     private static final String TAG = "CreateEventActivity";
@@ -40,6 +45,7 @@ public class CreateEventActivity extends AppCompatActivity {
     private TextInputLayout timeLayout;
     private TextInputLayout locationLayout;
     private TextInputLayout slotsLayout;
+
     private TextInputEditText nameInput;
     private AutoCompleteTextView categoryInput;
     private TextInputEditText descriptionInput;
@@ -90,6 +96,7 @@ public class CreateEventActivity extends AppCompatActivity {
         timeLayout = findViewById(R.id.create_event_time_layout);
         locationLayout = findViewById(R.id.create_event_location_layout);
         slotsLayout = findViewById(R.id.create_event_slots_layout);
+
         nameInput = findViewById(R.id.create_event_name_input);
         categoryInput = findViewById(R.id.create_event_category_input);
         descriptionInput = findViewById(R.id.create_event_description_input);
@@ -97,6 +104,7 @@ public class CreateEventActivity extends AppCompatActivity {
         timeInput = findViewById(R.id.create_event_time_input);
         locationInput = findViewById(R.id.create_event_location_input);
         slotsInput = findViewById(R.id.create_event_slots_input);
+
         errorText = findViewById(R.id.create_event_error);
         saveButton = findViewById(R.id.save_event_button);
         cancelButton = findViewById(R.id.cancel_create_event_button);
@@ -203,34 +211,73 @@ public class CreateEventActivity extends AppCompatActivity {
             slotsLayout.setError(getString(R.string.event_slots_required));
             valid = false;
         }
+
         if (!valid) {
             return;
         }
 
-        Map<String, Object> event = new HashMap<>();
-        event.put("name", name);
-        event.put("category", category);
-        event.put("description", description);
-        event.put("date", new Timestamp(selectedDate.getTime()));
-        event.put("time", selectedTime);
-        event.put("location", location);
-        event.put("availableSlots", availableSlots);
-        event.put("createdBy", auth.getCurrentUser().getUid());
-        event.put("createdAt", FieldValue.serverTimestamp());
+        geocodeAndSaveEvent(name, category, description, location, availableSlots);
+    }
 
+    private void geocodeAndSaveEvent(String name, String category, String description,
+                                     String location, long availableSlots) {
         setLoading(true);
-        database.collection("events")
-                .add(event)
-                .addOnSuccessListener(document -> {
+        ExecutorService executor = Executors.newSingleThreadExecutor();
+        executor.execute(() -> {
+            double lat = 0.0;
+            double lng = 0.0;
+            try {
+                if (Geocoder.isPresent()) {
+                    Geocoder geocoder = new Geocoder(CreateEventActivity.this, Locale.getDefault());
+                    List<Address> addresses = geocoder.getFromLocationName(location, 1);
+                    if (addresses != null && !addresses.isEmpty()) {
+                        Address address = addresses.get(0);
+                        lat = address.getLatitude();
+                        lng = address.getLongitude();
+                    }
+                }
+            } catch (Exception e) {
+                Log.e(TAG, "Erro ao geocodificar endereço: " + location, e);
+            }
+
+            final double finalLat = lat;
+            final double finalLng = lng;
+
+            runOnUiThread(() -> {
+                if (auth == null || auth.getCurrentUser() == null) {
                     setLoading(false);
-                    Toast.makeText(this, R.string.event_created, Toast.LENGTH_SHORT).show();
-                    finish();
-                })
-                .addOnFailureListener(exception -> {
-                    setLoading(false);
-                    Log.e(TAG, "Falha ao salvar evento no Firestore", exception);
-                    showError(firestoreErrorMessage(exception));
-                });
+                    openLogin();
+                    return;
+                }
+
+                Map<String, Object> event = new HashMap<>();
+                event.put("name", name);
+                event.put("category", category);
+                event.put("description", description);
+                event.put("date", new Timestamp(selectedDate.getTime()));
+                event.put("time", selectedTime);
+                event.put("location", location);
+                event.put("latitude", finalLat);
+                event.put("longitude", finalLng);
+                event.put("availableSlots", availableSlots);
+                event.put("createdBy", auth.getCurrentUser().getUid());
+                event.put("createdAt", FieldValue.serverTimestamp());
+
+                database.collection("events")
+                        .add(event)
+                        .addOnSuccessListener(document -> {
+                            setLoading(false);
+                            Toast.makeText(CreateEventActivity.this, R.string.event_created, Toast.LENGTH_SHORT).show();
+                            finish();
+                        })
+                        .addOnFailureListener(exception -> {
+                            setLoading(false);
+                            Log.e(TAG, "Falha ao salvar evento no Firestore", exception);
+                            showError(firestoreErrorMessage(exception));
+                        });
+            });
+            executor.shutdown();
+        });
     }
 
     private String firestoreErrorMessage(Exception exception) {

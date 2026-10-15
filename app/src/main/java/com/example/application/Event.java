@@ -11,13 +11,15 @@ public class Event {
     private String location;
     private long availableSlots;
     private String category;
+    private Double latitude;
+    private Double longitude;
 
     public Event() {
         // Construtor vazio obrigatório para a conversão de documentos do Firestore.
     }
 
     public Event(String id, String name, String description, Timestamp date, String time,
-                 String location, long availableSlots, String category) {
+                 String location, long availableSlots, String category, Double latitude, Double longitude) {
         this.id = id;
         this.name = name;
         this.description = description;
@@ -26,6 +28,8 @@ public class Event {
         this.location = location;
         this.availableSlots = availableSlots;
         this.category = category;
+        this.latitude = latitude;
+        this.longitude = longitude;
     }
 
     public String getId() {
@@ -90,5 +94,21 @@ public class Event {
 
     public void setCategory(String category) {
         this.category = category;
+    }
+
+    public double getLatitude() {
+        return latitude != null ? latitude : 0.0;
+    }
+
+    public void setLatitude(Double latitude) {
+        this.latitude = latitude;
+    }
+
+    public double getLongitude() {
+        return longitude != null ? longitude : 0.0;
+    }
+
+    public void setLongitude(Double longitude) {
+        this.longitude = longitude;
     }
 }

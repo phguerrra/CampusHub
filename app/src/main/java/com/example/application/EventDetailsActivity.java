@@ -1,6 +1,7 @@
 package com.example.application;
 
 import android.content.Intent;
+import android.net.Uri;
 import android.os.Bundle;
 import android.util.Log;
 import android.view.View;
@@ -10,6 +11,7 @@ import android.widget.ProgressBar;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
@@ -28,6 +30,13 @@ import com.google.firebase.firestore.FirebaseFirestoreException;
 import com.google.firebase.firestore.Query;
 import com.google.firebase.firestore.QueryDocumentSnapshot;
 
+import org.maplibre.android.MapLibre;
+import org.maplibre.android.annotations.MarkerOptions;
+import org.maplibre.android.camera.CameraUpdateFactory;
+import org.maplibre.android.geometry.LatLng;
+import org.maplibre.android.maps.MapView;
+import org.maplibre.android.maps.Style;
+
 import java.text.DateFormat;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
@@ -43,6 +52,9 @@ public class EventDetailsActivity extends AppCompatActivity {
     private TextView categoryText;
     private TextView dateTimeText;
     private TextView locationText;
+    private MapView mapView;
+    private TextView mapUnavailableMessage;
+    private MaterialButton openMapButton;
     private TextView descriptionText;
     private TextView availableSlotsText;
     private TextView errorText;
@@ -78,14 +90,19 @@ public class EventDetailsActivity extends AppCompatActivity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        MapLibre.getInstance(this);
         setContentView(R.layout.activity_event_details);
         bindViews();
+        if (mapView != null) {
+            mapView.onCreate(savedInstanceState);
+        }
         setupCommentsRecyclerView();
 
         findViewById(R.id.event_details_back_button).setOnClickListener(view -> finish());
         retryButton.setOnClickListener(view -> loadEvent());
         sendCommentButton.setOnClickListener(view -> sendComment());
         saveRatingButton.setOnClickListener(view -> saveRating());
+        openMapButton.setOnClickListener(view -> openEventMap());
 
         eventId = getIntent().getStringExtra(EventsActivity.EXTRA_EVENT_ID);
         if (eventId == null || eventId.trim().isEmpty()) {
@@ -104,6 +121,9 @@ public class EventDetailsActivity extends AppCompatActivity {
     @Override
     protected void onStart() {
         super.onStart();
+        if (mapView != null) {
+            mapView.onStart();
+        }
         if (auth == null) {
             return;
         }
@@ -114,11 +134,62 @@ public class EventDetailsActivity extends AppCompatActivity {
         }
     }
 
+    @Override
+    protected void onResume() {
+        super.onResume();
+        if (mapView != null) {
+            mapView.onResume();
+        }
+    }
+
+    @Override
+    protected void onPause() {
+        super.onPause();
+        if (mapView != null) {
+            mapView.onPause();
+        }
+    }
+
+    @Override
+    protected void onStop() {
+        super.onStop();
+        if (mapView != null) {
+            mapView.onStop();
+        }
+    }
+
+    @Override
+    protected void onSaveInstanceState(@NonNull Bundle outState) {
+        super.onSaveInstanceState(outState);
+        if (mapView != null) {
+            mapView.onSaveInstanceState(outState);
+        }
+    }
+
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        if (mapView != null) {
+            mapView.onDestroy();
+        }
+    }
+
+    @Override
+    public void onLowMemory() {
+        super.onLowMemory();
+        if (mapView != null) {
+            mapView.onLowMemory();
+        }
+    }
+
     private void bindViews() {
         nameText = findViewById(R.id.event_details_name);
         categoryText = findViewById(R.id.event_details_category);
         dateTimeText = findViewById(R.id.event_details_date_time);
         locationText = findViewById(R.id.event_details_location);
+        mapView = findViewById(R.id.map_view);
+        mapUnavailableMessage = findViewById(R.id.map_unavailable_message);
+        openMapButton = findViewById(R.id.event_details_open_map_button);
         descriptionText = findViewById(R.id.event_details_description);
         availableSlotsText = findViewById(R.id.event_details_available_slots);
         errorText = findViewById(R.id.event_details_error);
@@ -152,13 +223,41 @@ public class EventDetailsActivity extends AppCompatActivity {
         commentsRecyclerView = findViewById(R.id.event_details_comments_list);
     }
 
+    private void openEventMap() {
+        if (currentEvent == null) {
+            return;
+        }
+
+        double lat = currentEvent.getLatitude();
+        double lng = currentEvent.getLongitude();
+        String address = currentEvent.getLocation();
+
+        Uri mapUri;
+        if (lat != 0.0 || lng != 0.0) {
+            mapUri = Uri.parse("geo:" + lat + "," + lng + "?q=" + lat + "," + lng + "(" + Uri.encode(currentEvent.getName()) + ")");
+        } else if (address != null && !address.trim().isEmpty()) {
+            mapUri = Uri.parse("geo:0,0?q=" + Uri.encode(address));
+        } else {
+            Toast.makeText(this, R.string.event_information_unavailable, Toast.LENGTH_SHORT).show();
+            return;
+        }
+
+        Intent mapIntent = new Intent(Intent.ACTION_VIEW, mapUri);
+        try {
+            startActivity(mapIntent);
+        } catch (Exception e) {
+            Log.e(TAG, "Erro ao abrir mapa", e);
+            Toast.makeText(this, R.string.generic_error, Toast.LENGTH_SHORT).show();
+        }
+    }
+
     private void setStarRating(int rating) {
         selectedRatingValue = rating;
-        star1.setImageResource(rating >= 1 ? R.drawable.ic_star : R.drawable.ic_star_border);
-        star2.setImageResource(rating >= 2 ? R.drawable.ic_star : R.drawable.ic_star_border);
-        star3.setImageResource(rating >= 3 ? R.drawable.ic_star : R.drawable.ic_star_border);
-        star4.setImageResource(rating >= 4 ? R.drawable.ic_star : R.drawable.ic_star_border);
-        star5.setImageResource(rating >= 5 ? R.drawable.ic_star : R.drawable.ic_star_border);
+        if (star1 != null) star1.setImageResource(rating >= 1 ? R.drawable.ic_star : R.drawable.ic_star_border);
+        if (star2 != null) star2.setImageResource(rating >= 2 ? R.drawable.ic_star : R.drawable.ic_star_border);
+        if (star3 != null) star3.setImageResource(rating >= 3 ? R.drawable.ic_star : R.drawable.ic_star_border);
+        if (star4 != null) star4.setImageResource(rating >= 4 ? R.drawable.ic_star : R.drawable.ic_star_border);
+        if (star5 != null) star5.setImageResource(rating >= 5 ? R.drawable.ic_star : R.drawable.ic_star_border);
     }
 
     private void setupCommentsRecyclerView() {
@@ -180,6 +279,10 @@ public class EventDetailsActivity extends AppCompatActivity {
 
     private void loadEvent() {
         showLoading();
+        if (database == null || eventId == null) {
+            showError(getString(R.string.event_details_invalid_id), false);
+            return;
+        }
         database.collection("events")
                 .document(eventId)
                 .get()
@@ -188,18 +291,23 @@ public class EventDetailsActivity extends AppCompatActivity {
                         showError(getString(R.string.event_details_not_found), false);
                         return;
                     }
-                    Event event = document.toObject(Event.class);
-                    if (event == null) {
+                    try {
+                        Event event = document.toObject(Event.class);
+                        if (event == null) {
+                            showError(getString(R.string.event_details_load_error), true);
+                            return;
+                        }
+                        event.setId(document.getId());
+                        currentEvent = event;
+                        showEvent(event);
+                        checkSubscriptionStatus();
+                        checkFavoriteStatus();
+                        loadRatingsAndCalculateAverage();
+                        loadComments();
+                    } catch (Exception e) {
+                        Log.e(TAG, "Erro ao desserializar evento", e);
                         showError(getString(R.string.event_details_load_error), true);
-                        return;
                     }
-                    event.setId(document.getId());
-                    currentEvent = event;
-                    showEvent(event);
-                    checkSubscriptionStatus();
-                    checkFavoriteStatus();
-                    loadRatingsAndCalculateAverage();
-                    loadComments();
                 })
                 .addOnFailureListener(exception -> {
                     Log.e(TAG, "Erro ao carregar detalhes do evento", exception);
@@ -724,23 +832,83 @@ public class EventDetailsActivity extends AppCompatActivity {
         retryButton.setVisibility(View.GONE);
         detailsContent.setVisibility(View.VISIBLE);
 
-        nameText.setText(valueOrFallback(event.getName()));
-        if (event.getCategory() != null && !event.getCategory().trim().isEmpty()) {
-            categoryText.setText(event.getCategory().trim());
-            categoryText.setVisibility(View.VISIBLE);
-        } else {
-            categoryText.setVisibility(View.GONE);
+        if (nameText != null) nameText.setText(valueOrFallback(event.getName()));
+        if (descriptionText != null) descriptionText.setText(valueOrFallback(event.getDescription()));
+        if (categoryText != null) {
+            if (event.getCategory() != null && !event.getCategory().trim().isEmpty()) {
+                categoryText.setText(event.getCategory().trim());
+                categoryText.setVisibility(View.VISIBLE);
+            } else {
+                categoryText.setVisibility(View.GONE);
+            }
         }
-        dateTimeText.setText(getString(
-                R.string.event_date_time,
-                formatDate(event.getDate()),
-                valueOrFallback(event.getTime())));
-        locationText.setText(valueOrFallback(event.getLocation()));
-        descriptionText.setText(valueOrFallback(event.getDescription()));
-        availableSlotsText.setText(getResources().getQuantityString(
-                R.plurals.event_available_slots,
-                (int) event.getAvailableSlots(),
-                event.getAvailableSlots()));
+        if (dateTimeText != null) {
+            dateTimeText.setText(getString(
+                    R.string.event_date_time,
+                    formatDate(event.getDate()),
+                    valueOrFallback(event.getTime())));
+        }
+        if (locationText != null) locationText.setText(valueOrFallback(event.getLocation()));
+
+        if (availableSlotsText != null) {
+            availableSlotsText.setText(getResources().getQuantityString(
+                    R.plurals.event_available_slots,
+                    (int) event.getAvailableSlots(),
+                    event.getAvailableSlots()));
+        }
+
+        setupMapForEvent(event);
+    }
+
+    private void setupMapForEvent(Event event) {
+        if (mapView == null) {
+            return;
+        }
+
+        double lat = event != null ? event.getLatitude() : 0.0;
+        double lng = event != null ? event.getLongitude() : 0.0;
+
+        if (lat == 0.0 && lng == 0.0) {
+            mapView.setVisibility(View.GONE);
+            if (mapUnavailableMessage != null) {
+                mapUnavailableMessage.setVisibility(View.VISIBLE);
+            }
+            return;
+        }
+
+        if (mapUnavailableMessage != null) {
+            mapUnavailableMessage.setVisibility(View.GONE);
+        }
+        mapView.setVisibility(View.VISIBLE);
+
+        mapView.getMapAsync(mapLibreMap -> {
+            String osmStyle = "{\n" +
+                    "  \"version\": 8,\n" +
+                    "  \"sources\": {\n" +
+                    "    \"osm-tiles\": {\n" +
+                    "      \"type\": \"raster\",\n" +
+                    "      \"tiles\": [\"https://tile.openstreetmap.org/{z}/{x}/{y}.png\"],\n" +
+                    "      \"tileSize\": 256,\n" +
+                    "      \"attribution\": \"© OpenStreetMap contributors\"\n" +
+                    "    }\n" +
+                    "  },\n" +
+                    "  \"layers\": [\n" +
+                    "    {\n" +
+                    "      \"id\": \"osm-tiles-layer\",\n" +
+                    "      \"type\": \"raster\",\n" +
+                    "      \"source\": \"osm-tiles\"\n" +
+                    "    }\n" +
+                    "  ]\n" +
+                    "}";
+
+            mapLibreMap.setStyle(new Style.Builder().fromJson(osmStyle), style -> {
+                LatLng position = new LatLng(lat, lng);
+                mapLibreMap.moveCamera(CameraUpdateFactory.newLatLngZoom(position, 15));
+                mapLibreMap.addMarker(new MarkerOptions()
+                        .position(position)
+                        .title(event.getName() != null ? event.getName() : "Local do Evento"));
+            });
+        });
     }
 
     private void showError(String message, boolean canRetry) {

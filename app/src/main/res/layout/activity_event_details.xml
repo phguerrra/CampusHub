@@ -105,6 +105,50 @@
                 app:drawableTint="@color/text_secondary"
                 tools:text="Centro de Convenções" />
 
+            <com.google.android.material.card.MaterialCardView
+                android:id="@+id/event_details_map_card"
+                android:layout_width="match_parent"
+                android:layout_height="200dp"
+                android:layout_marginTop="12dp"
+                app:cardCornerRadius="16dp"
+                app:cardElevation="2dp"
+                app:strokeColor="@color/divider"
+                app:strokeWidth="1dp">
+
+                <FrameLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent">
+
+                    <org.maplibre.android.maps.MapView
+                        android:id="@+id/map_view"
+                        android:layout_width="match_parent"
+                        android:layout_height="match_parent" />
+
+                    <TextView
+                        android:id="@+id/map_unavailable_message"
+                        android:layout_width="match_parent"
+                        android:layout_height="match_parent"
+                        android:background="@color/surface_variant"
+                        android:gravity="center"
+                        android:padding="16dp"
+                        android:text="@string/map_location_unavailable"
+                        android:textAppearance="@style/TextAppearance.MaterialComponents.Body2"
+                        android:textColor="@color/text_secondary"
+                        android:visibility="gone" />
+                </FrameLayout>
+            </com.google.android.material.card.MaterialCardView>
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/event_details_open_map_button"
+                style="@style/Widget.MaterialComponents.Button.OutlinedButton.Icon"
+                android:layout_width="wrap_content"
+                android:layout_height="40dp"
+                android:layout_marginTop="8dp"
+                android:text="@string/open_map_button"
+                android:textSize="12sp"
+                app:icon="@drawable/ic_location"
+                app:iconTint="@color/brand_primary" />
+
             <TextView
                 android:id="@+id/event_details_available_slots"
                 android:layout_width="match_parent"
