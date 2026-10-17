@@ -3,6 +3,7 @@ package com.example.application;
 import android.Manifest;
 import android.content.Intent;
 import android.content.pm.PackageManager;
+import android.graphics.Bitmap;
 import android.media.MediaRecorder;
 import android.net.Uri;
 import android.os.Bundle;
@@ -44,6 +45,8 @@ import org.maplibre.android.maps.MapView;
 import org.maplibre.android.maps.Style;
 
 import java.io.File;
+import java.io.FileOutputStream;
+import java.io.InputStream;
 import java.text.DateFormat;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
@@ -77,6 +80,14 @@ public class EventDetailsActivity extends AppCompatActivity {
     private View ratingInputContainer;
     private ImageButton star1, star2, star3, star4, star5;
     private MaterialButton saveRatingButton;
+
+    private MaterialButton takePhotoButton;
+    private MaterialButton pickPhotoButton;
+    private TextView photosEmptyMessage;
+    private RecyclerView photosRecyclerView;
+    private PhotoAdapter photoAdapter;
+    private ActivityResultLauncher<Void> takePhotoLauncher;
+    private ActivityResultLauncher<String> pickGalleryLauncher;
 
     private MaterialButton recordAudioButton;
     private TextView recordingIndicator;
@@ -121,10 +132,35 @@ public class EventDetailsActivity extends AppCompatActivity {
                 }
         );
 
+        takePhotoLauncher = registerForActivityResult(
+                new ActivityResultContracts.TakePicturePreview(),
+                bitmap -> {
+                    if (bitmap != null) {
+                        String savedPath = saveBitmapToLocalFile(bitmap);
+                        if (savedPath != null) {
+                            publishPhotoToFirestore(savedPath);
+                        }
+                    }
+                }
+        );
+
+        pickGalleryLauncher = registerForActivityResult(
+                new ActivityResultContracts.GetContent(),
+                uri -> {
+                    if (uri != null) {
+                        String savedPath = copyUriToLocalFile(uri);
+                        if (savedPath != null) {
+                            publishPhotoToFirestore(savedPath);
+                        }
+                    }
+                }
+        );
+
         bindViews();
         if (mapView != null) {
             mapView.onCreate(savedInstanceState);
         }
+        setupPhotosRecyclerView();
         setupAudiosRecyclerView();
         setupCommentsRecyclerView();
 
@@ -134,6 +170,8 @@ public class EventDetailsActivity extends AppCompatActivity {
         saveRatingButton.setOnClickListener(view -> saveRating());
         openMapButton.setOnClickListener(view -> openEventMap());
         recordAudioButton.setOnClickListener(view -> toggleRecordAudio());
+        takePhotoButton.setOnClickListener(view -> takePhotoLauncher.launch(null));
+        pickPhotoButton.setOnClickListener(view -> pickGalleryLauncher.launch("image/*"));
 
         eventId = getIntent().getStringExtra(EventsActivity.EXTRA_EVENT_ID);
         if (eventId == null || eventId.trim().isEmpty()) {
@@ -257,6 +295,11 @@ public class EventDetailsActivity extends AppCompatActivity {
         star4.setOnClickListener(v -> setStarRating(4));
         star5.setOnClickListener(v -> setStarRating(5));
 
+        takePhotoButton = findViewById(R.id.event_details_take_photo_button);
+        pickPhotoButton = findViewById(R.id.event_details_pick_photo_button);
+        photosEmptyMessage = findViewById(R.id.event_details_photos_empty);
+        photosRecyclerView = findViewById(R.id.event_details_photos_list);
+
         recordAudioButton = findViewById(R.id.event_details_record_audio_button);
         recordingIndicator = findViewById(R.id.event_details_recording_indicator);
         audiosEmptyMessage = findViewById(R.id.event_details_audios_empty);
@@ -305,6 +348,13 @@ public class EventDetailsActivity extends AppCompatActivity {
         if (star5 != null) star5.setImageResource(rating >= 5 ? R.drawable.ic_star : R.drawable.ic_star_border);
     }
 
+    private void setupPhotosRecyclerView() {
+        String currentUserId = auth != null && auth.getCurrentUser() != null ? auth.getCurrentUser().getUid() : null;
+        photoAdapter = new PhotoAdapter(currentUserId, this::showDeletePhotoDialog);
+        photosRecyclerView.setLayoutManager(new LinearLayoutManager(this));
+        photosRecyclerView.setAdapter(photoAdapter);
+    }
+
     private void setupAudiosRecyclerView() {
         String currentUserId = auth != null && auth.getCurrentUser() != null ? auth.getCurrentUser().getUid() : null;
         audioAdapter = new AudioAdapter(currentUserId, this::showDeleteAudioDialog);
@@ -327,6 +377,150 @@ public class EventDetailsActivity extends AppCompatActivity {
         });
         commentsRecyclerView.setLayoutManager(new LinearLayoutManager(this));
         commentsRecyclerView.setAdapter(commentAdapter);
+    }
+
+    private String saveBitmapToLocalFile(Bitmap bitmap) {
+        try {
+            File photoDir = new File(getExternalFilesDir(null), "photos");
+            if (!photoDir.exists()) {
+                photoDir.mkdirs();
+            }
+            File photoFile = new File(photoDir, "photo_" + System.currentTimeMillis() + ".jpg");
+            FileOutputStream fos = new FileOutputStream(photoFile);
+            bitmap.compress(Bitmap.CompressFormat.JPEG, 90, fos);
+            fos.flush();
+            fos.close();
+            return photoFile.getAbsolutePath();
+        } catch (Exception e) {
+            Log.e(TAG, "Erro ao salvar foto capturada", e);
+            Toast.makeText(this, R.string.generic_error, Toast.LENGTH_SHORT).show();
+            return null;
+        }
+    }
+
+    private String copyUriToLocalFile(Uri uri) {
+        try {
+            File photoDir = new File(getExternalFilesDir(null), "photos");
+            if (!photoDir.exists()) {
+                photoDir.mkdirs();
+            }
+            File photoFile = new File(photoDir, "photo_" + System.currentTimeMillis() + ".jpg");
+            InputStream is = getContentResolver().openInputStream(uri);
+            FileOutputStream fos = new FileOutputStream(photoFile);
+            byte[] buffer = new byte[4096];
+            int read;
+            if (is != null) {
+                while ((read = is.read(buffer)) != -1) {
+                    fos.write(buffer, 0, read);
+                }
+                fos.flush();
+                fos.close();
+                is.close();
+            }
+            return photoFile.getAbsolutePath();
+        } catch (Exception e) {
+            Log.e(TAG, "Erro ao copiar foto da galeria", e);
+            Toast.makeText(this, R.string.generic_error, Toast.LENGTH_SHORT).show();
+            return null;
+        }
+    }
+
+    private void publishPhotoToFirestore(String photoPath) {
+        if (auth == null || auth.getCurrentUser() == null || database == null || eventId == null) {
+            openLogin();
+            return;
+        }
+
+        FirebaseUser user = auth.getCurrentUser();
+        String userId = user.getUid();
+        String authorName = user.getDisplayName() != null && !user.getDisplayName().trim().isEmpty()
+                ? user.getDisplayName().trim()
+                : "Aluno";
+
+        Map<String, Object> photoData = new HashMap<>();
+        photoData.put("eventId", eventId);
+        photoData.put("userId", userId);
+        photoData.put("authorName", authorName);
+        photoData.put("photoPath", photoPath);
+        photoData.put("createdAt", FieldValue.serverTimestamp());
+
+        database.collection("events")
+                .document(eventId)
+                .collection("photos")
+                .add(photoData)
+                .addOnSuccessListener(doc -> {
+                    Toast.makeText(this, R.string.photo_published_success, Toast.LENGTH_SHORT).show();
+                    loadPhotos();
+                })
+                .addOnFailureListener(e -> {
+                    Log.e(TAG, "Erro ao salvar foto no Firestore", e);
+                    Toast.makeText(this, R.string.generic_error, Toast.LENGTH_SHORT).show();
+                });
+    }
+
+    private void loadPhotos() {
+        if (database == null || eventId == null) {
+            return;
+        }
+        database.collection("events")
+                .document(eventId)
+                .collection("photos")
+                .orderBy("createdAt", Query.Direction.ASCENDING)
+                .get()
+                .addOnSuccessListener(querySnapshot -> {
+                    List<EventPhoto> photos = new ArrayList<>();
+                    if (querySnapshot != null) {
+                        for (QueryDocumentSnapshot doc : querySnapshot) {
+                            try {
+                                EventPhoto photo = doc.toObject(EventPhoto.class);
+                                photo.setId(doc.getId());
+                                photos.add(photo);
+                            } catch (Exception e) {
+                                Log.e(TAG, "Erro ao converter foto: " + doc.getId(), e);
+                            }
+                        }
+                    }
+                    String currentUserId = auth != null && auth.getCurrentUser() != null ? auth.getCurrentUser().getUid() : null;
+                    photoAdapter = new PhotoAdapter(currentUserId, this::showDeletePhotoDialog);
+                    photosRecyclerView.setAdapter(photoAdapter);
+                    photoAdapter.setPhotos(photos);
+                    photosEmptyMessage.setVisibility(photos.isEmpty() ? View.VISIBLE : View.GONE);
+                })
+                .addOnFailureListener(e -> Log.e(TAG, "Erro ao carregar fotos", e));
+    }
+
+    private void showDeletePhotoDialog(EventPhoto photo) {
+        new MaterialAlertDialogBuilder(this)
+                .setTitle(R.string.delete_photo_title)
+                .setMessage(R.string.delete_photo_confirm)
+                .setPositiveButton(R.string.delete_comment, (dialog, which) -> deletePhoto(photo))
+                .setNegativeButton(R.string.cancel, null)
+                .show();
+    }
+
+    private void deletePhoto(EventPhoto photo) {
+        if (database == null || eventId == null || photo.getId() == null) {
+            return;
+        }
+        database.collection("events")
+                .document(eventId)
+                .collection("photos")
+                .document(photo.getId())
+                .delete()
+                .addOnSuccessListener(aVoid -> {
+                    if (photo.getPhotoPath() != null) {
+                        File file = new File(photo.getPhotoPath());
+                        if (file.exists()) {
+                            file.delete();
+                        }
+                    }
+                    Toast.makeText(this, R.string.photo_deleted, Toast.LENGTH_SHORT).show();
+                    loadPhotos();
+                })
+                .addOnFailureListener(e -> {
+                    Log.e(TAG, "Erro ao excluir foto", e);
+                    Toast.makeText(this, R.string.generic_error, Toast.LENGTH_SHORT).show();
+                });
     }
 
     private void toggleRecordAudio() {
@@ -521,6 +715,7 @@ public class EventDetailsActivity extends AppCompatActivity {
                         checkSubscriptionStatus();
                         checkFavoriteStatus();
                         loadRatingsAndCalculateAverage();
+                        loadPhotos();
                         loadAudios();
                         loadComments();
                     } catch (Exception e) {
