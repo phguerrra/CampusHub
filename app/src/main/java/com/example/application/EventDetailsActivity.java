@@ -1,6 +1,9 @@
 package com.example.application;
 
+import android.Manifest;
 import android.content.Intent;
+import android.content.pm.PackageManager;
+import android.media.MediaRecorder;
 import android.net.Uri;
 import android.os.Bundle;
 import android.util.Log;
@@ -11,8 +14,11 @@ import android.widget.ProgressBar;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import androidx.activity.result.ActivityResultLauncher;
+import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.core.content.ContextCompat;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
@@ -37,6 +43,7 @@ import org.maplibre.android.geometry.LatLng;
 import org.maplibre.android.maps.MapView;
 import org.maplibre.android.maps.Style;
 
+import java.io.File;
 import java.text.DateFormat;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
@@ -71,6 +78,16 @@ public class EventDetailsActivity extends AppCompatActivity {
     private ImageButton star1, star2, star3, star4, star5;
     private MaterialButton saveRatingButton;
 
+    private MaterialButton recordAudioButton;
+    private TextView recordingIndicator;
+    private TextView audiosEmptyMessage;
+    private RecyclerView audiosRecyclerView;
+    private AudioAdapter audioAdapter;
+    private MediaRecorder mediaRecorder;
+    private boolean isRecording = false;
+    private String currentAudioPath = null;
+    private ActivityResultLauncher<String> requestPermissionLauncher;
+
     private TextInputEditText commentInput;
     private MaterialButton sendCommentButton;
     private TextView commentsEmptyMessage;
@@ -92,10 +109,23 @@ public class EventDetailsActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         MapLibre.getInstance(this);
         setContentView(R.layout.activity_event_details);
+
+        requestPermissionLauncher = registerForActivityResult(
+                new ActivityResultContracts.RequestPermission(),
+                isGranted -> {
+                    if (isGranted) {
+                        startRecordingAudio();
+                    } else {
+                        Toast.makeText(this, R.string.audio_permission_required, Toast.LENGTH_SHORT).show();
+                    }
+                }
+        );
+
         bindViews();
         if (mapView != null) {
             mapView.onCreate(savedInstanceState);
         }
+        setupAudiosRecyclerView();
         setupCommentsRecyclerView();
 
         findViewById(R.id.event_details_back_button).setOnClickListener(view -> finish());
@@ -103,6 +133,7 @@ public class EventDetailsActivity extends AppCompatActivity {
         sendCommentButton.setOnClickListener(view -> sendComment());
         saveRatingButton.setOnClickListener(view -> saveRating());
         openMapButton.setOnClickListener(view -> openEventMap());
+        recordAudioButton.setOnClickListener(view -> toggleRecordAudio());
 
         eventId = getIntent().getStringExtra(EventsActivity.EXTRA_EVENT_ID);
         if (eventId == null || eventId.trim().isEmpty()) {
@@ -156,6 +187,12 @@ public class EventDetailsActivity extends AppCompatActivity {
         if (mapView != null) {
             mapView.onStop();
         }
+        if (isRecording) {
+            stopRecordingAndPublishAudio();
+        }
+        if (audioAdapter != null) {
+            audioAdapter.stopPlayback();
+        }
     }
 
     @Override
@@ -171,6 +208,9 @@ public class EventDetailsActivity extends AppCompatActivity {
         super.onDestroy();
         if (mapView != null) {
             mapView.onDestroy();
+        }
+        if (audioAdapter != null) {
+            audioAdapter.stopPlayback();
         }
     }
 
@@ -217,6 +257,11 @@ public class EventDetailsActivity extends AppCompatActivity {
         star4.setOnClickListener(v -> setStarRating(4));
         star5.setOnClickListener(v -> setStarRating(5));
 
+        recordAudioButton = findViewById(R.id.event_details_record_audio_button);
+        recordingIndicator = findViewById(R.id.event_details_recording_indicator);
+        audiosEmptyMessage = findViewById(R.id.event_details_audios_empty);
+        audiosRecyclerView = findViewById(R.id.event_details_audios_list);
+
         commentInput = findViewById(R.id.add_comment_input);
         sendCommentButton = findViewById(R.id.send_comment_button);
         commentsEmptyMessage = findViewById(R.id.event_details_comments_empty);
@@ -260,6 +305,13 @@ public class EventDetailsActivity extends AppCompatActivity {
         if (star5 != null) star5.setImageResource(rating >= 5 ? R.drawable.ic_star : R.drawable.ic_star_border);
     }
 
+    private void setupAudiosRecyclerView() {
+        String currentUserId = auth != null && auth.getCurrentUser() != null ? auth.getCurrentUser().getUid() : null;
+        audioAdapter = new AudioAdapter(currentUserId, this::showDeleteAudioDialog);
+        audiosRecyclerView.setLayoutManager(new LinearLayoutManager(this));
+        audiosRecyclerView.setAdapter(audioAdapter);
+    }
+
     private void setupCommentsRecyclerView() {
         String currentUserId = auth != null && auth.getCurrentUser() != null ? auth.getCurrentUser().getUid() : null;
         commentAdapter = new CommentAdapter(currentUserId, new CommentAdapter.OnCommentActionListener() {
@@ -275,6 +327,172 @@ public class EventDetailsActivity extends AppCompatActivity {
         });
         commentsRecyclerView.setLayoutManager(new LinearLayoutManager(this));
         commentsRecyclerView.setAdapter(commentAdapter);
+    }
+
+    private void toggleRecordAudio() {
+        if (isRecording) {
+            stopRecordingAndPublishAudio();
+        } else {
+            if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO)
+                    == PackageManager.PERMISSION_GRANTED) {
+                startRecordingAudio();
+            } else {
+                requestPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO);
+            }
+        }
+    }
+
+    private void startRecordingAudio() {
+        try {
+            File audioDir = new File(getExternalFilesDir(null), "audios");
+            if (!audioDir.exists()) {
+                audioDir.mkdirs();
+            }
+            File audioFile = new File(audioDir, "audio_" + System.currentTimeMillis() + ".m4a");
+            currentAudioPath = audioFile.getAbsolutePath();
+
+            mediaRecorder = new MediaRecorder();
+            mediaRecorder.setAudioSource(MediaRecorder.AudioSource.MIC);
+            mediaRecorder.setOutputFormat(MediaRecorder.OutputFormat.MPEG_4);
+            mediaRecorder.setAudioEncoder(MediaRecorder.AudioEncoder.AAC);
+            mediaRecorder.setOutputFile(currentAudioPath);
+            mediaRecorder.prepare();
+            mediaRecorder.start();
+
+            isRecording = true;
+            recordAudioButton.setText(R.string.stop_recording_button);
+            recordAudioButton.setIconResource(R.drawable.ic_pause);
+            recordingIndicator.setVisibility(View.VISIBLE);
+        } catch (Exception e) {
+            Log.e(TAG, "Erro ao iniciar gravação de áudio", e);
+            Toast.makeText(this, R.string.generic_error, Toast.LENGTH_SHORT).show();
+            resetRecordingState();
+        }
+    }
+
+    private void stopRecordingAndPublishAudio() {
+        if (!isRecording || mediaRecorder == null) {
+            return;
+        }
+        try {
+            mediaRecorder.stop();
+            mediaRecorder.release();
+        } catch (Exception e) {
+            Log.e(TAG, "Erro ao parar gravação de áudio", e);
+        }
+        mediaRecorder = null;
+        isRecording = false;
+
+        resetRecordingState();
+
+        if (currentAudioPath != null && new File(currentAudioPath).exists()) {
+            publishAudioToFirestore(currentAudioPath);
+        }
+    }
+
+    private void resetRecordingState() {
+        isRecording = false;
+        recordAudioButton.setText(R.string.record_audio_button);
+        recordAudioButton.setIconResource(R.drawable.ic_mic);
+        recordingIndicator.setVisibility(View.GONE);
+    }
+
+    private void publishAudioToFirestore(String audioPath) {
+        if (auth == null || auth.getCurrentUser() == null || database == null || eventId == null) {
+            openLogin();
+            return;
+        }
+
+        FirebaseUser user = auth.getCurrentUser();
+        String userId = user.getUid();
+        String authorName = user.getDisplayName() != null && !user.getDisplayName().trim().isEmpty()
+                ? user.getDisplayName().trim()
+                : "Aluno";
+
+        Map<String, Object> audioData = new HashMap<>();
+        audioData.put("eventId", eventId);
+        audioData.put("userId", userId);
+        audioData.put("authorName", authorName);
+        audioData.put("audioPath", audioPath);
+        audioData.put("createdAt", FieldValue.serverTimestamp());
+
+        database.collection("events")
+                .document(eventId)
+                .collection("audios")
+                .add(audioData)
+                .addOnSuccessListener(doc -> {
+                    Toast.makeText(this, R.string.audio_recorded_success, Toast.LENGTH_SHORT).show();
+                    loadAudios();
+                })
+                .addOnFailureListener(e -> {
+                    Log.e(TAG, "Erro ao salvar áudio no Firestore", e);
+                    Toast.makeText(this, R.string.generic_error, Toast.LENGTH_SHORT).show();
+                });
+    }
+
+    private void loadAudios() {
+        if (database == null || eventId == null) {
+            return;
+        }
+        database.collection("events")
+                .document(eventId)
+                .collection("audios")
+                .orderBy("createdAt", Query.Direction.ASCENDING)
+                .get()
+                .addOnSuccessListener(querySnapshot -> {
+                    List<EventAudio> audios = new ArrayList<>();
+                    if (querySnapshot != null) {
+                        for (QueryDocumentSnapshot doc : querySnapshot) {
+                            try {
+                                EventAudio audio = doc.toObject(EventAudio.class);
+                                audio.setId(doc.getId());
+                                audios.add(audio);
+                            } catch (Exception e) {
+                                Log.e(TAG, "Erro ao converter áudio: " + doc.getId(), e);
+                            }
+                        }
+                    }
+                    String currentUserId = auth != null && auth.getCurrentUser() != null ? auth.getCurrentUser().getUid() : null;
+                    audioAdapter = new AudioAdapter(currentUserId, this::showDeleteAudioDialog);
+                    audiosRecyclerView.setAdapter(audioAdapter);
+                    audioAdapter.setAudios(audios);
+                    audiosEmptyMessage.setVisibility(audios.isEmpty() ? View.VISIBLE : View.GONE);
+                })
+                .addOnFailureListener(e -> Log.e(TAG, "Erro ao carregar áudios", e));
+    }
+
+    private void showDeleteAudioDialog(EventAudio audio) {
+        new MaterialAlertDialogBuilder(this)
+                .setTitle(R.string.delete_audio_title)
+                .setMessage(R.string.delete_audio_confirm)
+                .setPositiveButton(R.string.delete_comment, (dialog, which) -> deleteAudio(audio))
+                .setNegativeButton(R.string.cancel, null)
+                .show();
+    }
+
+    private void deleteAudio(EventAudio audio) {
+        if (database == null || eventId == null || audio.getId() == null) {
+            return;
+        }
+        database.collection("events")
+                .document(eventId)
+                .collection("audios")
+                .document(audio.getId())
+                .delete()
+                .addOnSuccessListener(aVoid -> {
+                    if (audio.getAudioPath() != null) {
+                        File file = new File(audio.getAudioPath());
+                        if (file.exists()) {
+                            file.delete();
+                        }
+                    }
+                    Toast.makeText(this, R.string.audio_deleted, Toast.LENGTH_SHORT).show();
+                    loadAudios();
+                })
+                .addOnFailureListener(e -> {
+                    Log.e(TAG, "Erro ao excluir áudio", e);
+                    Toast.makeText(this, R.string.generic_error, Toast.LENGTH_SHORT).show();
+                });
     }
 
     private void loadEvent() {
@@ -303,6 +521,7 @@ public class EventDetailsActivity extends AppCompatActivity {
                         checkSubscriptionStatus();
                         checkFavoriteStatus();
                         loadRatingsAndCalculateAverage();
+                        loadAudios();
                         loadComments();
                     } catch (Exception e) {
                         Log.e(TAG, "Erro ao desserializar evento", e);
