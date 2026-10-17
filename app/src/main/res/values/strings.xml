@@ -128,4 +128,14 @@
     <string name="location_coordinates">Coordenadas: %1$.6f, %2$.6f</string>
     <string name="event_location_title">Localização do evento</string>
     <string name="map_location_unavailable">Localização exata em mapa indisponível para este evento.</string>
+    <string name="audio_title">Áudios do Evento</string>
+    <string name="record_audio_button">Gravar Áudio</string>
+    <string name="stop_recording_button">Parar e Publicar</string>
+    <string name="recording_in_progress">Gravando áudio... Toque para finalizar.</string>
+    <string name="audio_recorded_success">Áudio publicado com sucesso!</string>
+    <string name="audio_permission_required">Permissão de microfone é necessária para gravar áudio.</string>
+    <string name="audios_empty">Nenhum áudio publicado para este evento ainda.</string>
+    <string name="delete_audio_title">Excluir Áudio</string>
+    <string name="delete_audio_confirm">Deseja realmente excluir este áudio?</string>
+    <string name="audio_deleted">Áudio excluído com sucesso.</string>
 </resources>
