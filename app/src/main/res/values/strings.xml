@@ -138,4 +138,12 @@
     <string name="delete_audio_title">Excluir Áudio</string>
     <string name="delete_audio_confirm">Deseja realmente excluir este áudio?</string>
     <string name="audio_deleted">Áudio excluído com sucesso.</string>
+    <string name="photo_title">Fotos do Evento</string>
+    <string name="take_photo_button">Tirar Foto</string>
+    <string name="pick_photo_button">Galeria</string>
+    <string name="photo_published_success">Foto publicada com sucesso!</string>
+    <string name="photos_empty">Nenhuma foto publicada para este evento ainda.</string>
+    <string name="delete_photo_title">Excluir Foto</string>
+    <string name="delete_photo_confirm">Deseja realmente excluir esta foto?</string>
+    <string name="photo_deleted">Foto excluída com sucesso.</string>
 </resources>
