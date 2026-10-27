@@ -20,6 +20,7 @@ import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.content.ContextCompat;
+import androidx.core.content.FileProvider;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
@@ -89,6 +90,15 @@ public class EventDetailsActivity extends AppCompatActivity {
     private ActivityResultLauncher<Void> takePhotoLauncher;
     private ActivityResultLauncher<String> pickGalleryLauncher;
 
+    private MaterialButton recordVideoButton;
+    private MaterialButton pickVideoButton;
+    private TextView videosEmptyMessage;
+    private RecyclerView videosRecyclerView;
+    private VideoAdapter videoAdapter;
+    private String currentCapturedVideoPath = null;
+    private ActivityResultLauncher<Uri> captureVideoLauncher;
+    private ActivityResultLauncher<String> pickGalleryVideoLauncher;
+
     private MaterialButton recordAudioButton;
     private TextView recordingIndicator;
     private TextView audiosEmptyMessage;
@@ -121,6 +131,42 @@ public class EventDetailsActivity extends AppCompatActivity {
         MapLibre.getInstance(this);
         setContentView(R.layout.activity_event_details);
 
+        setupLaunchers();
+        bindViews();
+        if (mapView != null) {
+            mapView.onCreate(savedInstanceState);
+        }
+        setupPhotosRecyclerView();
+        setupVideosRecyclerView();
+        setupAudiosRecyclerView();
+        setupCommentsRecyclerView();
+
+        findViewById(R.id.event_details_back_button).setOnClickListener(view -> finish());
+        retryButton.setOnClickListener(view -> loadEvent());
+        sendCommentButton.setOnClickListener(view -> sendComment());
+        saveRatingButton.setOnClickListener(view -> saveRating());
+        openMapButton.setOnClickListener(view -> openEventMap());
+        recordAudioButton.setOnClickListener(view -> toggleRecordAudio());
+        takePhotoButton.setOnClickListener(view -> takePhotoLauncher.launch(null));
+        pickPhotoButton.setOnClickListener(view -> pickGalleryLauncher.launch("image/*"));
+        recordVideoButton.setOnClickListener(view -> recordVideoWithCamera());
+        pickVideoButton.setOnClickListener(view -> pickGalleryVideoLauncher.launch("video/*"));
+
+        eventId = getIntent().getStringExtra(EventsActivity.EXTRA_EVENT_ID);
+        if (eventId == null || eventId.trim().isEmpty()) {
+            showError(getString(R.string.event_details_invalid_id), false);
+            return;
+        }
+        if (FirebaseApp.getApps(this).isEmpty()) {
+            showError(getString(R.string.firebase_not_configured), false);
+            return;
+        }
+
+        auth = FirebaseAuth.getInstance();
+        database = FirebaseFirestore.getInstance();
+    }
+
+    private void setupLaunchers() {
         requestPermissionLauncher = registerForActivityResult(
                 new ActivityResultContracts.RequestPermission(),
                 isGranted -> {
@@ -148,7 +194,7 @@ public class EventDetailsActivity extends AppCompatActivity {
                 new ActivityResultContracts.GetContent(),
                 uri -> {
                     if (uri != null) {
-                        String savedPath = copyUriToLocalFile(uri);
+                        String savedPath = copyUriToLocalDirectory(uri, "photos", "photo_", ".jpg");
                         if (savedPath != null) {
                             publishPhotoToFirestore(savedPath);
                         }
@@ -156,35 +202,48 @@ public class EventDetailsActivity extends AppCompatActivity {
                 }
         );
 
-        bindViews();
-        if (mapView != null) {
-            mapView.onCreate(savedInstanceState);
-        }
-        setupPhotosRecyclerView();
-        setupAudiosRecyclerView();
-        setupCommentsRecyclerView();
+        captureVideoLauncher = registerForActivityResult(
+                new ActivityResultContracts.CaptureVideo(),
+                success -> {
+                    if (Boolean.TRUE.equals(success) && currentCapturedVideoPath != null) {
+                        publishVideoToFirestore(currentCapturedVideoPath);
+                    }
+                }
+        );
 
-        findViewById(R.id.event_details_back_button).setOnClickListener(view -> finish());
-        retryButton.setOnClickListener(view -> loadEvent());
-        sendCommentButton.setOnClickListener(view -> sendComment());
-        saveRatingButton.setOnClickListener(view -> saveRating());
-        openMapButton.setOnClickListener(view -> openEventMap());
-        recordAudioButton.setOnClickListener(view -> toggleRecordAudio());
-        takePhotoButton.setOnClickListener(view -> takePhotoLauncher.launch(null));
-        pickPhotoButton.setOnClickListener(view -> pickGalleryLauncher.launch("image/*"));
+        pickGalleryVideoLauncher = registerForActivityResult(
+                new ActivityResultContracts.GetContent(),
+                uri -> {
+                    if (uri != null) {
+                        String savedPath = copyUriToLocalDirectory(uri, "videos", "video_", ".mp4");
+                        if (savedPath != null) {
+                            publishVideoToFirestore(savedPath);
+                        }
+                    }
+                }
+        );
+    }
 
-        eventId = getIntent().getStringExtra(EventsActivity.EXTRA_EVENT_ID);
-        if (eventId == null || eventId.trim().isEmpty()) {
-            showError(getString(R.string.event_details_invalid_id), false);
-            return;
-        }
-        if (FirebaseApp.getApps(this).isEmpty()) {
-            showError(getString(R.string.firebase_not_configured), false);
-            return;
-        }
+    private String getCurrentUserId() {
+        return auth != null && auth.getCurrentUser() != null ? auth.getCurrentUser().getUid() : null;
+    }
 
-        auth = FirebaseAuth.getInstance();
-        database = FirebaseFirestore.getInstance();
+    private String getAuthorName() {
+        if (auth == null || auth.getCurrentUser() == null) {
+            return "Aluno";
+        }
+        FirebaseUser user = auth.getCurrentUser();
+        return user.getDisplayName() != null && !user.getDisplayName().trim().isEmpty()
+                ? user.getDisplayName().trim()
+                : "Aluno";
+    }
+
+    private File getMediaDirectory(String folderName) {
+        File dir = new File(getExternalFilesDir(null), folderName);
+        if (!dir.exists()) {
+            dir.mkdirs();
+        }
+        return dir;
     }
 
     @Override
@@ -300,6 +359,11 @@ public class EventDetailsActivity extends AppCompatActivity {
         photosEmptyMessage = findViewById(R.id.event_details_photos_empty);
         photosRecyclerView = findViewById(R.id.event_details_photos_list);
 
+        recordVideoButton = findViewById(R.id.event_details_record_video_button);
+        pickVideoButton = findViewById(R.id.event_details_pick_video_button);
+        videosEmptyMessage = findViewById(R.id.event_details_videos_empty);
+        videosRecyclerView = findViewById(R.id.event_details_videos_list);
+
         recordAudioButton = findViewById(R.id.event_details_record_audio_button);
         recordingIndicator = findViewById(R.id.event_details_recording_indicator);
         audiosEmptyMessage = findViewById(R.id.event_details_audios_empty);
@@ -349,22 +413,25 @@ public class EventDetailsActivity extends AppCompatActivity {
     }
 
     private void setupPhotosRecyclerView() {
-        String currentUserId = auth != null && auth.getCurrentUser() != null ? auth.getCurrentUser().getUid() : null;
-        photoAdapter = new PhotoAdapter(currentUserId, this::showDeletePhotoDialog);
+        photoAdapter = new PhotoAdapter(getCurrentUserId(), this::showDeletePhotoDialog);
         photosRecyclerView.setLayoutManager(new LinearLayoutManager(this));
         photosRecyclerView.setAdapter(photoAdapter);
     }
 
+    private void setupVideosRecyclerView() {
+        videoAdapter = new VideoAdapter(getCurrentUserId(), this::showDeleteVideoDialog);
+        videosRecyclerView.setLayoutManager(new LinearLayoutManager(this));
+        videosRecyclerView.setAdapter(videoAdapter);
+    }
+
     private void setupAudiosRecyclerView() {
-        String currentUserId = auth != null && auth.getCurrentUser() != null ? auth.getCurrentUser().getUid() : null;
-        audioAdapter = new AudioAdapter(currentUserId, this::showDeleteAudioDialog);
+        audioAdapter = new AudioAdapter(getCurrentUserId(), this::showDeleteAudioDialog);
         audiosRecyclerView.setLayoutManager(new LinearLayoutManager(this));
         audiosRecyclerView.setAdapter(audioAdapter);
     }
 
     private void setupCommentsRecyclerView() {
-        String currentUserId = auth != null && auth.getCurrentUser() != null ? auth.getCurrentUser().getUid() : null;
-        commentAdapter = new CommentAdapter(currentUserId, new CommentAdapter.OnCommentActionListener() {
+        commentAdapter = new CommentAdapter(getCurrentUserId(), new CommentAdapter.OnCommentActionListener() {
             @Override
             public void onEditComment(Comment comment) {
                 showEditCommentDialog(comment);
@@ -381,10 +448,7 @@ public class EventDetailsActivity extends AppCompatActivity {
 
     private String saveBitmapToLocalFile(Bitmap bitmap) {
         try {
-            File photoDir = new File(getExternalFilesDir(null), "photos");
-            if (!photoDir.exists()) {
-                photoDir.mkdirs();
-            }
+            File photoDir = getMediaDirectory("photos");
             File photoFile = new File(photoDir, "photo_" + System.currentTimeMillis() + ".jpg");
             FileOutputStream fos = new FileOutputStream(photoFile);
             bitmap.compress(Bitmap.CompressFormat.JPEG, 90, fos);
@@ -398,16 +462,13 @@ public class EventDetailsActivity extends AppCompatActivity {
         }
     }
 
-    private String copyUriToLocalFile(Uri uri) {
+    private String copyUriToLocalDirectory(Uri uri, String folderName, String prefix, String extension) {
         try {
-            File photoDir = new File(getExternalFilesDir(null), "photos");
-            if (!photoDir.exists()) {
-                photoDir.mkdirs();
-            }
-            File photoFile = new File(photoDir, "photo_" + System.currentTimeMillis() + ".jpg");
+            File dir = getMediaDirectory(folderName);
+            File localFile = new File(dir, prefix + System.currentTimeMillis() + extension);
             InputStream is = getContentResolver().openInputStream(uri);
-            FileOutputStream fos = new FileOutputStream(photoFile);
-            byte[] buffer = new byte[4096];
+            FileOutputStream fos = new FileOutputStream(localFile);
+            byte[] buffer = new byte[8192];
             int read;
             if (is != null) {
                 while ((read = is.read(buffer)) != -1) {
@@ -417,30 +478,38 @@ public class EventDetailsActivity extends AppCompatActivity {
                 fos.close();
                 is.close();
             }
-            return photoFile.getAbsolutePath();
+            return localFile.getAbsolutePath();
         } catch (Exception e) {
-            Log.e(TAG, "Erro ao copiar foto da galeria", e);
+            Log.e(TAG, "Erro ao copiar arquivo da galeria", e);
             Toast.makeText(this, R.string.generic_error, Toast.LENGTH_SHORT).show();
             return null;
         }
     }
 
+    private void recordVideoWithCamera() {
+        try {
+            File videoDir = getMediaDirectory("videos");
+            File videoFile = new File(videoDir, "video_" + System.currentTimeMillis() + ".mp4");
+            currentCapturedVideoPath = videoFile.getAbsolutePath();
+            Uri videoUri = FileProvider.getUriForFile(this, getPackageName() + ".fileprovider", videoFile);
+            captureVideoLauncher.launch(videoUri);
+        } catch (Exception e) {
+            Log.e(TAG, "Erro ao iniciar gravação de vídeo", e);
+            Toast.makeText(this, R.string.generic_error, Toast.LENGTH_SHORT).show();
+        }
+    }
+
     private void publishPhotoToFirestore(String photoPath) {
-        if (auth == null || auth.getCurrentUser() == null || database == null || eventId == null) {
+        String userId = getCurrentUserId();
+        if (userId == null || database == null || eventId == null) {
             openLogin();
             return;
         }
 
-        FirebaseUser user = auth.getCurrentUser();
-        String userId = user.getUid();
-        String authorName = user.getDisplayName() != null && !user.getDisplayName().trim().isEmpty()
-                ? user.getDisplayName().trim()
-                : "Aluno";
-
         Map<String, Object> photoData = new HashMap<>();
         photoData.put("eventId", eventId);
         photoData.put("userId", userId);
-        photoData.put("authorName", authorName);
+        photoData.put("authorName", getAuthorName());
         photoData.put("photoPath", photoPath);
         photoData.put("createdAt", FieldValue.serverTimestamp());
 
@@ -454,6 +523,34 @@ public class EventDetailsActivity extends AppCompatActivity {
                 })
                 .addOnFailureListener(e -> {
                     Log.e(TAG, "Erro ao salvar foto no Firestore", e);
+                    Toast.makeText(this, R.string.generic_error, Toast.LENGTH_SHORT).show();
+                });
+    }
+
+    private void publishVideoToFirestore(String videoPath) {
+        String userId = getCurrentUserId();
+        if (userId == null || database == null || eventId == null) {
+            openLogin();
+            return;
+        }
+
+        Map<String, Object> videoData = new HashMap<>();
+        videoData.put("eventId", eventId);
+        videoData.put("userId", userId);
+        videoData.put("authorName", getAuthorName());
+        videoData.put("videoPath", videoPath);
+        videoData.put("createdAt", FieldValue.serverTimestamp());
+
+        database.collection("events")
+                .document(eventId)
+                .collection("videos")
+                .add(videoData)
+                .addOnSuccessListener(doc -> {
+                    Toast.makeText(this, R.string.video_published_success, Toast.LENGTH_SHORT).show();
+                    loadVideos();
+                })
+                .addOnFailureListener(e -> {
+                    Log.e(TAG, "Erro ao salvar vídeo no Firestore", e);
                     Toast.makeText(this, R.string.generic_error, Toast.LENGTH_SHORT).show();
                 });
     }
@@ -480,13 +577,42 @@ public class EventDetailsActivity extends AppCompatActivity {
                             }
                         }
                     }
-                    String currentUserId = auth != null && auth.getCurrentUser() != null ? auth.getCurrentUser().getUid() : null;
-                    photoAdapter = new PhotoAdapter(currentUserId, this::showDeletePhotoDialog);
+                    photoAdapter = new PhotoAdapter(getCurrentUserId(), this::showDeletePhotoDialog);
                     photosRecyclerView.setAdapter(photoAdapter);
                     photoAdapter.setPhotos(photos);
                     photosEmptyMessage.setVisibility(photos.isEmpty() ? View.VISIBLE : View.GONE);
                 })
                 .addOnFailureListener(e -> Log.e(TAG, "Erro ao carregar fotos", e));
+    }
+
+    private void loadVideos() {
+        if (database == null || eventId == null) {
+            return;
+        }
+        database.collection("events")
+                .document(eventId)
+                .collection("videos")
+                .orderBy("createdAt", Query.Direction.ASCENDING)
+                .get()
+                .addOnSuccessListener(querySnapshot -> {
+                    List<EventVideo> videos = new ArrayList<>();
+                    if (querySnapshot != null) {
+                        for (QueryDocumentSnapshot doc : querySnapshot) {
+                            try {
+                                EventVideo video = doc.toObject(EventVideo.class);
+                                video.setId(doc.getId());
+                                videos.add(video);
+                            } catch (Exception e) {
+                                Log.e(TAG, "Erro ao converter vídeo: " + doc.getId(), e);
+                            }
+                        }
+                    }
+                    videoAdapter = new VideoAdapter(getCurrentUserId(), this::showDeleteVideoDialog);
+                    videosRecyclerView.setAdapter(videoAdapter);
+                    videoAdapter.setVideos(videos);
+                    videosEmptyMessage.setVisibility(videos.isEmpty() ? View.VISIBLE : View.GONE);
+                })
+                .addOnFailureListener(e -> Log.e(TAG, "Erro ao carregar vídeos", e));
     }
 
     private void showDeletePhotoDialog(EventPhoto photo) {
@@ -523,6 +649,40 @@ public class EventDetailsActivity extends AppCompatActivity {
                 });
     }
 
+    private void showDeleteVideoDialog(EventVideo video) {
+        new MaterialAlertDialogBuilder(this)
+                .setTitle(R.string.delete_video_title)
+                .setMessage(R.string.delete_video_confirm)
+                .setPositiveButton(R.string.delete_comment, (dialog, which) -> deleteVideo(video))
+                .setNegativeButton(R.string.cancel, null)
+                .show();
+    }
+
+    private void deleteVideo(EventVideo video) {
+        if (database == null || eventId == null || video.getId() == null) {
+            return;
+        }
+        database.collection("events")
+                .document(eventId)
+                .collection("videos")
+                .document(video.getId())
+                .delete()
+                .addOnSuccessListener(aVoid -> {
+                    if (video.getVideoPath() != null) {
+                        File file = new File(video.getVideoPath());
+                        if (file.exists()) {
+                            file.delete();
+                        }
+                    }
+                    Toast.makeText(this, R.string.video_deleted, Toast.LENGTH_SHORT).show();
+                    loadVideos();
+                })
+                .addOnFailureListener(e -> {
+                    Log.e(TAG, "Erro ao excluir vídeo", e);
+                    Toast.makeText(this, R.string.generic_error, Toast.LENGTH_SHORT).show();
+                });
+    }
+
     private void toggleRecordAudio() {
         if (isRecording) {
             stopRecordingAndPublishAudio();
@@ -538,10 +698,7 @@ public class EventDetailsActivity extends AppCompatActivity {
 
     private void startRecordingAudio() {
         try {
-            File audioDir = new File(getExternalFilesDir(null), "audios");
-            if (!audioDir.exists()) {
-                audioDir.mkdirs();
-            }
+            File audioDir = getMediaDirectory("audios");
             File audioFile = new File(audioDir, "audio_" + System.currentTimeMillis() + ".m4a");
             currentAudioPath = audioFile.getAbsolutePath();
 
@@ -592,21 +749,16 @@ public class EventDetailsActivity extends AppCompatActivity {
     }
 
     private void publishAudioToFirestore(String audioPath) {
-        if (auth == null || auth.getCurrentUser() == null || database == null || eventId == null) {
+        String userId = getCurrentUserId();
+        if (userId == null || database == null || eventId == null) {
             openLogin();
             return;
         }
 
-        FirebaseUser user = auth.getCurrentUser();
-        String userId = user.getUid();
-        String authorName = user.getDisplayName() != null && !user.getDisplayName().trim().isEmpty()
-                ? user.getDisplayName().trim()
-                : "Aluno";
-
         Map<String, Object> audioData = new HashMap<>();
         audioData.put("eventId", eventId);
         audioData.put("userId", userId);
-        audioData.put("authorName", authorName);
+        audioData.put("authorName", getAuthorName());
         audioData.put("audioPath", audioPath);
         audioData.put("createdAt", FieldValue.serverTimestamp());
 
@@ -646,8 +798,7 @@ public class EventDetailsActivity extends AppCompatActivity {
                             }
                         }
                     }
-                    String currentUserId = auth != null && auth.getCurrentUser() != null ? auth.getCurrentUser().getUid() : null;
-                    audioAdapter = new AudioAdapter(currentUserId, this::showDeleteAudioDialog);
+                    audioAdapter = new AudioAdapter(getCurrentUserId(), this::showDeleteAudioDialog);
                     audiosRecyclerView.setAdapter(audioAdapter);
                     audioAdapter.setAudios(audios);
                     audiosEmptyMessage.setVisibility(audios.isEmpty() ? View.VISIBLE : View.GONE);
@@ -716,6 +867,7 @@ public class EventDetailsActivity extends AppCompatActivity {
                         checkFavoriteStatus();
                         loadRatingsAndCalculateAverage();
                         loadPhotos();
+                        loadVideos();
                         loadAudios();
                         loadComments();
                     } catch (Exception e) {
@@ -730,10 +882,10 @@ public class EventDetailsActivity extends AppCompatActivity {
     }
 
     private void checkSubscriptionStatus() {
-        if (auth == null || auth.getCurrentUser() == null || database == null) {
+        String userId = getCurrentUserId();
+        if (userId == null || database == null) {
             return;
         }
-        String userId = auth.getCurrentUser().getUid();
         String subscriptionDocId = eventId + "_" + userId;
 
         database.collection("subscriptions")
@@ -753,10 +905,10 @@ public class EventDetailsActivity extends AppCompatActivity {
     }
 
     private void checkFavoriteStatus() {
-        if (auth == null || auth.getCurrentUser() == null || database == null) {
+        String userId = getCurrentUserId();
+        if (userId == null || database == null) {
             return;
         }
-        String userId = auth.getCurrentUser().getUid();
         String favoriteDocId = eventId + "_" + userId;
 
         database.collection("favorites")
@@ -809,12 +961,12 @@ public class EventDetailsActivity extends AppCompatActivity {
     }
 
     private void toggleFavorite() {
-        if (auth == null || auth.getCurrentUser() == null || database == null) {
+        String userId = getCurrentUserId();
+        if (userId == null || database == null) {
             openLogin();
             return;
         }
 
-        String userId = auth.getCurrentUser().getUid();
         String favoriteDocId = eventId + "_" + userId;
         DocumentReference favRef = database.collection("favorites").document(favoriteDocId);
 
@@ -853,7 +1005,8 @@ public class EventDetailsActivity extends AppCompatActivity {
     }
 
     private void subscribeToEvent() {
-        if (auth == null || auth.getCurrentUser() == null || database == null) {
+        String userId = getCurrentUserId();
+        if (userId == null || database == null) {
             openLogin();
             return;
         }
@@ -863,7 +1016,6 @@ public class EventDetailsActivity extends AppCompatActivity {
             return;
         }
 
-        String userId = auth.getCurrentUser().getUid();
         String subscriptionDocId = eventId + "_" + userId;
 
         setSubscribeLoading(true);
@@ -898,12 +1050,12 @@ public class EventDetailsActivity extends AppCompatActivity {
     }
 
     private void unsubscribeFromEvent() {
-        if (auth == null || auth.getCurrentUser() == null || database == null) {
+        String userId = getCurrentUserId();
+        if (userId == null || database == null) {
             openLogin();
             return;
         }
 
-        String userId = auth.getCurrentUser().getUid();
         String subscriptionDocId = eventId + "_" + userId;
 
         setSubscribeLoading(true);
@@ -936,7 +1088,7 @@ public class EventDetailsActivity extends AppCompatActivity {
         if (database == null || eventId == null) {
             return;
         }
-        String currentUserId = auth != null && auth.getCurrentUser() != null ? auth.getCurrentUser().getUid() : null;
+        String currentUserId = getCurrentUserId();
 
         database.collection("events")
                 .document(eventId)
@@ -1014,7 +1166,8 @@ public class EventDetailsActivity extends AppCompatActivity {
     }
 
     private void saveRating() {
-        if (auth == null || auth.getCurrentUser() == null || database == null) {
+        String userId = getCurrentUserId();
+        if (userId == null || database == null) {
             openLogin();
             return;
         }
@@ -1024,7 +1177,6 @@ public class EventDetailsActivity extends AppCompatActivity {
             return;
         }
 
-        String userId = auth.getCurrentUser().getUid();
         DocumentReference ratingRef = database.collection("events")
                 .document(eventId)
                 .collection("ratings")
@@ -1073,8 +1225,7 @@ public class EventDetailsActivity extends AppCompatActivity {
                             }
                         }
                     }
-                    String currentUserId = auth != null && auth.getCurrentUser() != null ? auth.getCurrentUser().getUid() : null;
-                    commentAdapter = new CommentAdapter(currentUserId, new CommentAdapter.OnCommentActionListener() {
+                    commentAdapter = new CommentAdapter(getCurrentUserId(), new CommentAdapter.OnCommentActionListener() {
                         @Override
                         public void onEditComment(Comment comment) {
                             showEditCommentDialog(comment);
@@ -1093,7 +1244,8 @@ public class EventDetailsActivity extends AppCompatActivity {
     }
 
     private void sendComment() {
-        if (auth == null || auth.getCurrentUser() == null || database == null) {
+        String userId = getCurrentUserId();
+        if (userId == null || database == null) {
             openLogin();
             return;
         }
@@ -1104,16 +1256,10 @@ public class EventDetailsActivity extends AppCompatActivity {
             return;
         }
 
-        FirebaseUser user = auth.getCurrentUser();
-        String userId = user.getUid();
-        String authorName = user.getDisplayName() != null && !user.getDisplayName().trim().isEmpty()
-                ? user.getDisplayName().trim()
-                : "Aluno";
-
         Map<String, Object> commentData = new HashMap<>();
         commentData.put("eventId", eventId);
         commentData.put("userId", userId);
-        commentData.put("authorName", authorName);
+        commentData.put("authorName", getAuthorName());
         commentData.put("text", commentText);
         commentData.put("createdAt", FieldValue.serverTimestamp());
 

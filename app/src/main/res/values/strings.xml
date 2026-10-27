@@ -146,4 +146,12 @@
     <string name="delete_photo_title">Excluir Foto</string>
     <string name="delete_photo_confirm">Deseja realmente excluir esta foto?</string>
     <string name="photo_deleted">Foto excluída com sucesso.</string>
+    <string name="video_title">Vídeos do Evento</string>
+    <string name="record_video_button">Gravar Vídeo</string>
+    <string name="pick_video_button">Galeria Vídeo</string>
+    <string name="video_published_success">Vídeo publicado com sucesso!</string>
+    <string name="videos_empty">Nenhum vídeo publicado para este evento ainda.</string>
+    <string name="delete_video_title">Excluir Vídeo</string>
+    <string name="delete_video_confirm">Deseja realmente excluir este vídeo?</string>
+    <string name="video_deleted">Vídeo excluído com sucesso.</string>
 </resources>

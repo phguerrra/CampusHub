@@ -137,11 +137,7 @@ public class EventsActivity extends AppCompatActivity {
         categoryFilterInput.setAdapter(categoryAdapter);
         categoryFilterInput.setOnItemClickListener((parent, view, position, id) -> {
             String selected = categories[position];
-            if (selected.equals(getString(R.string.all_categories))) {
-                selectedCategoryFilter = "";
-            } else {
-                selectedCategoryFilter = selected;
-            }
+            selectedCategoryFilter = selected.equals(getString(R.string.all_categories)) ? "" : selected;
             applyFiltersAndSearch();
         });
 
@@ -158,11 +154,7 @@ public class EventsActivity extends AppCompatActivity {
         statusFilterInput.setAdapter(statusAdapter);
         statusFilterInput.setOnItemClickListener((parent, view, position, id) -> {
             String selected = statuses[position];
-            if (selected.equals(getString(R.string.all_statuses))) {
-                selectedStatusFilter = "";
-            } else {
-                selectedStatusFilter = selected;
-            }
+            selectedStatusFilter = selected.equals(getString(R.string.all_statuses)) ? "" : selected;
             applyFiltersAndSearch();
         });
     }
@@ -252,13 +244,13 @@ public class EventsActivity extends AppCompatActivity {
         database.collection("subscriptions")
                 .whereEqualTo("userId", userId)
                 .get(Source.SERVER)
-                .addOnSuccessListener(this::processSubscriptions)
+                .addOnSuccessListener(snapshot -> processEventRelations(snapshot, "Erro ao converter evento inscrito"))
                 .addOnFailureListener(exception -> {
                     Log.w(TAG, "Falha ao carregar minhas inscrições do servidor, tentando cache...", exception);
                     database.collection("subscriptions")
                             .whereEqualTo("userId", userId)
                             .get(Source.CACHE)
-                            .addOnSuccessListener(this::processSubscriptions)
+                            .addOnSuccessListener(snapshot -> processEventRelations(snapshot, "Erro ao converter evento inscrito"))
                             .addOnFailureListener(cacheException -> {
                                 setLoading(false);
                                 showEvents(Collections.emptyList());
@@ -267,7 +259,35 @@ public class EventsActivity extends AppCompatActivity {
                 });
     }
 
-    private void processSubscriptions(QuerySnapshot querySnapshot) {
+    private void loadFavoriteEvents() {
+        emptyMessage.setText(R.string.favorite_events_empty);
+        if (auth == null || auth.getCurrentUser() == null) {
+            openLogin();
+            return;
+        }
+
+        String userId = auth.getCurrentUser().getUid();
+        setLoading(true);
+
+        database.collection("favorites")
+                .whereEqualTo("userId", userId)
+                .get(Source.SERVER)
+                .addOnSuccessListener(snapshot -> processEventRelations(snapshot, "Erro ao converter evento favorito"))
+                .addOnFailureListener(exception -> {
+                    Log.w(TAG, "Falha ao carregar favoritos do servidor, tentando cache...", exception);
+                    database.collection("favorites")
+                            .whereEqualTo("userId", userId)
+                            .get(Source.CACHE)
+                            .addOnSuccessListener(snapshot -> processEventRelations(snapshot, "Erro ao converter evento favorito"))
+                            .addOnFailureListener(cacheException -> {
+                                setLoading(false);
+                                showEvents(Collections.emptyList());
+                                handleFirestoreError(exception);
+                            });
+                });
+    }
+
+    private void processEventRelations(QuerySnapshot querySnapshot, String errorLogTag) {
         if (querySnapshot == null || querySnapshot.isEmpty()) {
             setLoading(false);
             showEvents(Collections.emptyList());
@@ -289,7 +309,7 @@ public class EventsActivity extends AppCompatActivity {
         }
 
         Tasks.whenAllComplete(tasks).addOnCompleteListener(allTasks -> {
-            List<Event> myEvents = new ArrayList<>();
+            List<Event> events = new ArrayList<>();
             for (Task<DocumentSnapshot> task : tasks) {
                 if (task.isSuccessful() && task.getResult() != null) {
                     DocumentSnapshot doc = task.getResult();
@@ -298,96 +318,20 @@ public class EventsActivity extends AppCompatActivity {
                             Event event = doc.toObject(Event.class);
                             if (event != null) {
                                 event.setId(doc.getId());
-                                myEvents.add(event);
+                                events.add(event);
                             }
                         } catch (RuntimeException exception) {
-                            Log.e(TAG, "Erro ao converter evento inscrito: " + doc.getId(), exception);
+                            Log.e(TAG, errorLogTag + ": " + doc.getId(), exception);
                         }
                     }
                 }
             }
-            myEvents.sort(Comparator.comparing(
+            events.sort(Comparator.comparing(
                     Event::getDate,
                     Comparator.nullsLast(Comparator.naturalOrder())
             ));
             setLoading(false);
-            showEvents(myEvents);
-        });
-    }
-
-    private void loadFavoriteEvents() {
-        emptyMessage.setText(R.string.favorite_events_empty);
-        if (auth == null || auth.getCurrentUser() == null) {
-            openLogin();
-            return;
-        }
-
-        String userId = auth.getCurrentUser().getUid();
-        setLoading(true);
-
-        database.collection("favorites")
-                .whereEqualTo("userId", userId)
-                .get(Source.SERVER)
-                .addOnSuccessListener(this::processFavorites)
-                .addOnFailureListener(exception -> {
-                    Log.w(TAG, "Falha ao carregar favoritos do servidor, tentando cache...", exception);
-                    database.collection("favorites")
-                            .whereEqualTo("userId", userId)
-                            .get(Source.CACHE)
-                            .addOnSuccessListener(this::processFavorites)
-                            .addOnFailureListener(cacheException -> {
-                                setLoading(false);
-                                showEvents(Collections.emptyList());
-                                handleFirestoreError(exception);
-                            });
-                });
-    }
-
-    private void processFavorites(QuerySnapshot querySnapshot) {
-        if (querySnapshot == null || querySnapshot.isEmpty()) {
-            setLoading(false);
-            showEvents(Collections.emptyList());
-            return;
-        }
-
-        List<Task<DocumentSnapshot>> tasks = new ArrayList<>();
-        for (QueryDocumentSnapshot favDoc : querySnapshot) {
-            String eventId = favDoc.getString("eventId");
-            if (eventId != null && !eventId.trim().isEmpty()) {
-                tasks.add(database.collection("events").document(eventId).get());
-            }
-        }
-
-        if (tasks.isEmpty()) {
-            setLoading(false);
-            showEvents(Collections.emptyList());
-            return;
-        }
-
-        Tasks.whenAllComplete(tasks).addOnCompleteListener(allTasks -> {
-            List<Event> favEvents = new ArrayList<>();
-            for (Task<DocumentSnapshot> task : tasks) {
-                if (task.isSuccessful() && task.getResult() != null) {
-                    DocumentSnapshot doc = task.getResult();
-                    if (doc.exists()) {
-                        try {
-                            Event event = doc.toObject(Event.class);
-                            if (event != null) {
-                                event.setId(doc.getId());
-                                favEvents.add(event);
-                            }
-                        } catch (RuntimeException exception) {
-                            Log.e(TAG, "Erro ao converter evento favorito: " + doc.getId(), exception);
-                        }
-                    }
-                }
-            }
-            favEvents.sort(Comparator.comparing(
-                    Event::getDate,
-                    Comparator.nullsLast(Comparator.naturalOrder())
-            ));
-            setLoading(false);
-            showEvents(favEvents);
+            showEvents(events);
         });
     }
 
@@ -396,7 +340,6 @@ public class EventsActivity extends AppCompatActivity {
         long now = System.currentTimeMillis();
 
         for (Event event : fullLoadedEventsList) {
-            // Search Query filter
             boolean matchesSearch = currentSearchQuery.isEmpty() ||
                     (event.getName() != null && event.getName().toLowerCase(Locale.getDefault()).contains(currentSearchQuery));
 
@@ -404,7 +347,6 @@ public class EventsActivity extends AppCompatActivity {
                 continue;
             }
 
-            // Category filter
             if (!selectedCategoryFilter.isEmpty()) {
                 String cat = event.getCategory() != null ? event.getCategory().trim() : "";
                 if (!cat.equalsIgnoreCase(selectedCategoryFilter)) {
@@ -412,7 +354,6 @@ public class EventsActivity extends AppCompatActivity {
                 }
             }
 
-            // Status filter (Próximos vs Encerrados)
             if (!selectedStatusFilter.isEmpty()) {
                 boolean isEnded = event.getDate() != null && event.getDate().toDate().getTime() < now;
                 if (selectedStatusFilter.equals(getString(R.string.status_upcoming)) && isEnded) {
