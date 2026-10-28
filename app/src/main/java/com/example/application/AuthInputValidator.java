@@ -1,35 +1,23 @@
 package com.example.application;
 
-import androidx.annotation.Nullable;
+public class AuthInputValidator {
 
-import java.util.regex.Pattern;
-
-final class AuthInputValidator {
-    static final int MIN_PASSWORD_LENGTH = 6;
-    private static final Pattern EMAIL_PATTERN = Pattern.compile(
-            "^[A-Z0-9._%+-]+@[A-Z0-9.-]+\\.[A-Z]{2,}$",
-            Pattern.CASE_INSENSITIVE
-    );
-
-
-    @Nullable
-    static String validateName(String name) {
-        if (name.trim().length() < 2) {
+    public static String validateName(String name) {
+        if (name == null || name.trim().length() < 2) {
             return "Informe seu nome.";
         }
         return null;
     }
 
-    @Nullable
-    static String validateEmail(String email) {
-        if (email.trim().isEmpty() || !EMAIL_PATTERN.matcher(email.trim()).matches()) {
+    public static String validateEmail(String email) {
+        if (email == null || email.trim().isEmpty() || !email.contains("@") || email.endsWith("@") || !email.substring(email.indexOf("@")).contains(".")) {
             return "Informe um e-mail válido.";
         }
         return null;
     }
-    @Nullable
-    static String validatePassword(String password) {
-        if (password.length() < MIN_PASSWORD_LENGTH) {
+
+    public static String validatePassword(String password) {
+        if (password == null || password.length() < 6) {
             return "A senha deve ter pelo menos 6 caracteres.";
         }
         return null;
