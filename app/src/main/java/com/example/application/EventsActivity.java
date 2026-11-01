@@ -17,7 +17,7 @@ import androidx.recyclerview.widget.RecyclerView;
 
 import com.google.android.gms.tasks.Task;
 import com.google.android.gms.tasks.Tasks;
-import com.google.android.material.button.MaterialButtonToggleGroup;
+import com.google.android.material.bottomnavigation.BottomNavigationView;
 import com.google.android.material.textfield.MaterialAutoCompleteTextView;
 import com.google.android.material.textfield.TextInputEditText;
 import com.google.firebase.FirebaseApp;
@@ -65,7 +65,6 @@ public class EventsActivity extends AppCompatActivity {
         setContentView(R.layout.activity_events);
 
         findViewById(R.id.create_event_button).setOnClickListener(view -> openCreateEvent());
-        findViewById(R.id.profile_button).setOnClickListener(view -> openProfile());
         findViewById(R.id.logout_button).setOnClickListener(view -> signOut());
         RecyclerView eventsList = findViewById(R.id.events_list);
         emptyMessage = findViewById(R.id.events_empty_message);
@@ -73,7 +72,7 @@ public class EventsActivity extends AppCompatActivity {
         searchInput = findViewById(R.id.search_events_input);
         categoryFilterInput = findViewById(R.id.filter_category_input);
         statusFilterInput = findViewById(R.id.filter_status_input);
-        MaterialButtonToggleGroup filterToggle = findViewById(R.id.events_filter_toggle);
+        BottomNavigationView bottomNavigation = findViewById(R.id.bottom_navigation);
         eventAdapter = new EventAdapter(this::openEventDetails);
 
         eventsList.setLayoutManager(new LinearLayoutManager(this));
@@ -81,17 +80,25 @@ public class EventsActivity extends AppCompatActivity {
 
         setupFilterDropdowns();
 
-        filterToggle.addOnButtonCheckedListener((group, checkedId, isChecked) -> {
-            if (isChecked) {
-                if (checkedId == R.id.filter_my_events) {
-                    currentFilterMode = FILTER_MY_EVENTS;
-                } else if (checkedId == R.id.filter_favorite_events) {
-                    currentFilterMode = FILTER_FAVORITES;
-                } else {
-                    currentFilterMode = FILTER_ALL;
-                }
+        bottomNavigation.setOnItemSelectedListener(item -> {
+            int itemId = item.getItemId();
+            if (itemId == R.id.nav_all_events) {
+                currentFilterMode = FILTER_ALL;
                 refreshEventsList();
+                return true;
+            } else if (itemId == R.id.nav_my_events) {
+                currentFilterMode = FILTER_MY_EVENTS;
+                refreshEventsList();
+                return true;
+            } else if (itemId == R.id.nav_favorite_events) {
+                currentFilterMode = FILTER_FAVORITES;
+                refreshEventsList();
+                return true;
+            } else if (itemId == R.id.nav_profile) {
+                openProfile();
+                return true;
             }
+            return false;
         });
 
         searchInput.addTextChangedListener(new TextWatcher() {

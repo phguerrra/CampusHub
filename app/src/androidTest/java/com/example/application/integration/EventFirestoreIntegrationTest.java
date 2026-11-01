@@ -13,6 +13,7 @@ import androidx.test.platform.app.InstrumentationRegistry;
 import com.google.android.gms.tasks.Task;
 import com.google.android.gms.tasks.Tasks;
 import com.google.firebase.FirebaseApp;
+import com.google.firebase.firestore.DocumentReference;
 import com.google.firebase.firestore.DocumentSnapshot;
 import com.google.firebase.firestore.FieldValue;
 import com.google.firebase.firestore.FirebaseFirestore;
@@ -35,7 +36,7 @@ public class EventFirestoreIntegrationTest {
     private String testUserId;
 
     @Before
-    public void setUp() throws Exception {
+    public void setUp() {
         Context context = InstrumentationRegistry.getInstrumentation().getTargetContext();
         if (FirebaseApp.getApps(context).isEmpty()) {
             FirebaseApp.initializeApp(context);
@@ -111,11 +112,148 @@ public class EventFirestoreIntegrationTest {
         assertFalse("Inscrição não deve mais existir no Firestore após o cancelamento", snapshot.exists());
     }
 
+    @Test
+    public void testFavoriteEvent() throws Exception {
+        String favDocId = testEventId + "_" + testUserId;
+        Map<String, Object> favData = new HashMap<>();
+        favData.put("eventId", testEventId);
+        favData.put("userId", testUserId);
+        favData.put("favoritedAt", FieldValue.serverTimestamp());
+
+        Task<Void> setTask = database.collection("favorites").document(favDocId).set(favData);
+        Tasks.await(setTask, 10, TimeUnit.SECONDS);
+
+        Task<DocumentSnapshot> getTask = database.collection("favorites").document(favDocId).get();
+        DocumentSnapshot snapshot = Tasks.await(getTask, 10, TimeUnit.SECONDS);
+
+        assertTrue("Favorito deve existir no Firestore", snapshot.exists());
+        assertEquals(testEventId, snapshot.getString("eventId"));
+        assertEquals(testUserId, snapshot.getString("userId"));
+    }
+
+    @Test
+    public void testUnfavoriteEvent() throws Exception {
+        testFavoriteEvent();
+
+        String favDocId = testEventId + "_" + testUserId;
+        Task<Void> deleteTask = database.collection("favorites").document(favDocId).delete();
+        Tasks.await(deleteTask, 10, TimeUnit.SECONDS);
+
+        Task<DocumentSnapshot> getTask = database.collection("favorites").document(favDocId).get();
+        DocumentSnapshot snapshot = Tasks.await(getTask, 10, TimeUnit.SECONDS);
+
+        assertFalse("Favorito não deve mais existir no Firestore após remoção", snapshot.exists());
+    }
+
+    @Test
+    public void testAddComment() throws Exception {
+        testCreateEvent();
+
+        Map<String, Object> commentData = new HashMap<>();
+        commentData.put("eventId", testEventId);
+        commentData.put("userId", testUserId);
+        commentData.put("authorName", "Aluno Teste");
+        commentData.put("text", "Comentário de teste no Firestore.");
+        commentData.put("createdAt", FieldValue.serverTimestamp());
+
+        Task<DocumentReference> addTask = database.collection("events")
+                .document(testEventId)
+                .collection("comments")
+                .add(commentData);
+        DocumentReference docRef = Tasks.await(addTask, 10, TimeUnit.SECONDS);
+
+        Task<DocumentSnapshot> getTask = docRef.get();
+        DocumentSnapshot snapshot = Tasks.await(getTask, 10, TimeUnit.SECONDS);
+
+        assertTrue("Comentário deve existir na subcoleção", snapshot.exists());
+        assertEquals("Comentário de teste no Firestore.", snapshot.getString("text"));
+        assertEquals("Aluno Teste", snapshot.getString("authorName"));
+    }
+
+    @Test
+    public void testSaveRating() throws Exception {
+        testCreateEvent();
+
+        Map<String, Object> ratingData = new HashMap<>();
+        ratingData.put("eventId", testEventId);
+        ratingData.put("userId", testUserId);
+        ratingData.put("rating", 5.0);
+        ratingData.put("updatedAt", FieldValue.serverTimestamp());
+
+        Task<Void> setTask = database.collection("events")
+                .document(testEventId)
+                .collection("ratings")
+                .document(testUserId)
+                .set(ratingData);
+        Tasks.await(setTask, 10, TimeUnit.SECONDS);
+
+        Task<DocumentSnapshot> getTask = database.collection("events")
+                .document(testEventId)
+                .collection("ratings")
+                .document(testUserId)
+                .get();
+        DocumentSnapshot snapshot = Tasks.await(getTask, 10, TimeUnit.SECONDS);
+
+        assertTrue("Avaliação deve existir no Firestore", snapshot.exists());
+        Double score = snapshot.getDouble("rating");
+        assertNotNull("Nota de avaliação não deve ser nula", score);
+        assertEquals(5.0, score, 0.001);
+    }
+
+    @Test
+    public void testPublishAudioMetadata() throws Exception {
+        testCreateEvent();
+
+        Map<String, Object> audioData = new HashMap<>();
+        audioData.put("eventId", testEventId);
+        audioData.put("userId", testUserId);
+        audioData.put("authorName", "Aluno Teste");
+        audioData.put("audioPath", "/path/test_audio.m4a");
+        audioData.put("createdAt", FieldValue.serverTimestamp());
+
+        Task<DocumentReference> addTask = database.collection("events")
+                .document(testEventId)
+                .collection("audios")
+                .add(audioData);
+        DocumentReference docRef = Tasks.await(addTask, 10, TimeUnit.SECONDS);
+
+        Task<DocumentSnapshot> getTask = docRef.get();
+        DocumentSnapshot snapshot = Tasks.await(getTask, 10, TimeUnit.SECONDS);
+
+        assertTrue("Áudio deve existir na subcoleção", snapshot.exists());
+        assertEquals("/path/test_audio.m4a", snapshot.getString("audioPath"));
+    }
+
+    @Test
+    public void testPublishPhotoMetadata() throws Exception {
+        testCreateEvent();
+
+        Map<String, Object> photoData = new HashMap<>();
+        photoData.put("eventId", testEventId);
+        photoData.put("userId", testUserId);
+        photoData.put("authorName", "Aluno Teste");
+        photoData.put("photoPath", "/path/test_photo.jpg");
+        photoData.put("createdAt", FieldValue.serverTimestamp());
+
+        Task<DocumentReference> addTask = database.collection("events")
+                .document(testEventId)
+                .collection("photos")
+                .add(photoData);
+        DocumentReference docRef = Tasks.await(addTask, 10, TimeUnit.SECONDS);
+
+        Task<DocumentSnapshot> getTask = docRef.get();
+        DocumentSnapshot snapshot = Tasks.await(getTask, 10, TimeUnit.SECONDS);
+
+        assertTrue("Foto deve existir na subcoleção", snapshot.exists());
+        assertEquals("/path/test_photo.jpg", snapshot.getString("photoPath"));
+    }
+
     @After
-    public void tearDown() throws Exception {
+    public void tearDown() {
         if (database != null && testEventId != null) {
             database.collection("events").document(testEventId).delete();
             database.collection("subscriptions").document(testEventId + "_" + testUserId).delete();
+            database.collection("favorites").document(testEventId + "_" + testUserId).delete();
         }
     }
 }
