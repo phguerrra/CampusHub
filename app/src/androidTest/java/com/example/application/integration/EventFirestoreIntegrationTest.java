@@ -13,6 +13,8 @@ import androidx.test.platform.app.InstrumentationRegistry;
 import com.google.android.gms.tasks.Task;
 import com.google.android.gms.tasks.Tasks;
 import com.google.firebase.FirebaseApp;
+import com.google.firebase.auth.AuthResult;
+import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.firestore.DocumentReference;
 import com.google.firebase.firestore.DocumentSnapshot;
 import com.google.firebase.firestore.FieldValue;
@@ -36,13 +38,18 @@ public class EventFirestoreIntegrationTest {
     private String testUserId;
 
     @Before
-    public void setUp() {
+    public void setUp() throws Exception {
         Context context = InstrumentationRegistry.getInstrumentation().getTargetContext();
         if (FirebaseApp.getApps(context).isEmpty()) {
             FirebaseApp.initializeApp(context);
         }
+        FirebaseAuth auth = FirebaseAuth.getInstance();
+        if (auth.getCurrentUser() == null) {
+            Task<AuthResult> authTask = auth.signInWithEmailAndPassword("aluno@exemplo.com", "123456");
+            Tasks.await(authTask, 10, TimeUnit.SECONDS);
+        }
         database = FirebaseFirestore.getInstance();
-        testUserId = "test_user_integration_" + System.currentTimeMillis();
+        testUserId = auth.getCurrentUser() != null ? auth.getCurrentUser().getUid() : ("test_user_" + System.currentTimeMillis());
         testEventId = "test_event_integration_" + System.currentTimeMillis();
     }
 

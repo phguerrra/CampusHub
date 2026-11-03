@@ -194,6 +194,27 @@ public class CreateEventActivity extends AppCompatActivity {
             valid = false;
         }
         if (selectedDate == null) {
+            String dateStr = textOf(dateInput).trim();
+            if (!dateStr.isEmpty()) {
+                try {
+                    DateFormat formatter = new SimpleDateFormat("dd/MM/yyyy", Locale.getDefault());
+                    java.util.Date parsed = formatter.parse(dateStr);
+                    if (parsed != null) {
+                        selectedDate = Calendar.getInstance();
+                        selectedDate.setTime(parsed);
+                    }
+                } catch (Exception ignored) {
+                }
+            }
+        }
+        if (selectedTime == null) {
+            String timeStr = textOf(timeInput).trim();
+            if (!timeStr.isEmpty()) {
+                selectedTime = timeStr;
+            }
+        }
+
+        if (selectedDate == null) {
             dateLayout.setError(getString(R.string.event_date_required));
             valid = false;
         }
