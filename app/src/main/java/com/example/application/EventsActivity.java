@@ -17,6 +17,7 @@ import androidx.recyclerview.widget.RecyclerView;
 
 import com.google.android.gms.tasks.Task;
 import com.google.android.gms.tasks.Tasks;
+import com.google.android.material.button.MaterialButton;
 import com.google.android.material.bottomnavigation.BottomNavigationView;
 import com.google.android.material.textfield.MaterialAutoCompleteTextView;
 import com.google.android.material.textfield.TextInputEditText;
@@ -49,11 +50,13 @@ public class EventsActivity extends AppCompatActivity {
     private TextInputEditText searchInput;
     private MaterialAutoCompleteTextView categoryFilterInput;
     private MaterialAutoCompleteTextView statusFilterInput;
+    private MaterialButton createEventButton;
 
     private FirebaseAuth auth;
     private FirebaseFirestore database;
 
     private int currentFilterMode = FILTER_ALL;
+    private boolean isOrganizer = false;
     private final List<Event> fullLoadedEventsList = new ArrayList<>();
     private String currentSearchQuery = "";
     private String selectedCategoryFilter = "";
@@ -64,7 +67,8 @@ public class EventsActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_events);
 
-        findViewById(R.id.create_event_button).setOnClickListener(view -> openCreateEvent());
+        createEventButton = findViewById(R.id.create_event_button);
+        createEventButton.setOnClickListener(view -> openCreateEvent());
         findViewById(R.id.logout_button).setOnClickListener(view -> signOut());
         RecyclerView eventsList = findViewById(R.id.events_list);
         emptyMessage = findViewById(R.id.events_empty_message);
@@ -173,8 +177,38 @@ public class EventsActivity extends AppCompatActivity {
             if (auth.getCurrentUser() == null) {
                 openLogin();
             } else {
+                refreshUserRoleAndPermissions();
                 refreshEventsList();
             }
+        }
+    }
+
+    private void refreshUserRoleAndPermissions() {
+        if (auth == null || auth.getCurrentUser() == null || database == null) {
+            return;
+        }
+        String userId = auth.getCurrentUser().getUid();
+        database.collection("users")
+                .document(userId)
+                .get()
+                .addOnSuccessListener(document -> {
+                    if (document.exists()) {
+                        User user = document.toObject(User.class);
+                        isOrganizer = user != null && user.isOrganizer();
+                    } else {
+                        isOrganizer = false;
+                    }
+                    updateOrganizerPermissionsUI();
+                })
+                .addOnFailureListener(e -> {
+                    isOrganizer = false;
+                    updateOrganizerPermissionsUI();
+                });
+    }
+
+    private void updateOrganizerPermissionsUI() {
+        if (createEventButton != null) {
+            createEventButton.setVisibility(isOrganizer ? View.VISIBLE : View.GONE);
         }
     }
 
@@ -448,6 +482,10 @@ public class EventsActivity extends AppCompatActivity {
     }
 
     private void openCreateEvent() {
+        if (!isOrganizer) {
+            Toast.makeText(this, R.string.organizer_only_create_event, Toast.LENGTH_SHORT).show();
+            return;
+        }
         startActivity(new Intent(this, CreateEventActivity.class));
     }
 
