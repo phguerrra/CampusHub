@@ -154,4 +154,30 @@
     <string name="delete_video_title">Excluir Vídeo</string>
     <string name="delete_video_confirm">Deseja realmente excluir este vídeo?</string>
     <string name="video_deleted">Vídeo excluído com sucesso.</string>
+    <string name="role_label">Tipo de conta</string>
+    <string name="role_student">Aluno</string>
+    <string name="role_organizer">Organizador</string>
+    <string name="organizer_only_create_event">Apenas organizadores podem criar novos eventos.</string>
+
+    <!-- Gerenciamento do Organizador -->
+    <string name="organizer_management_title">Gerenciamento do Organizador</string>
+    <string name="edit_event">Editar evento</string>
+    <string name="close_event">Encerrar evento</string>
+    <string name="view_attendees">Ver inscritos</string>
+    <string name="edit_event_title">Editar evento</string>
+    <string name="event_updated">Evento atualizado com sucesso!</string>
+    <string name="event_closed_success">Evento encerrado com sucesso.</string>
+    <string name="close_event_confirm_title">Encerrar evento?</string>
+    <string name="close_event_confirm_message">Após encerrado, o evento não aceitará novas inscrições.</string>
+    <string name="event_closed_badge">Evento Encerrado</string>
+    <string name="organizer_only_edit">Você só pode editar eventos criados por você.</string>
+
+    <!-- Lista de Inscritos (Acompanhamento) -->
+    <string name="attendees_title">Inscritos no Evento</string>
+    <string name="attendees_total_label">Total de Inscritos</string>
+    <string name="attendees_checkedin_label">Check-ins Realizados</string>
+    <string name="attendees_empty">Nenhum aluno inscrito neste evento ainda.</string>
+    <string name="attendee_status_subscribed">Inscrito</string>
+    <string name="attendee_status_checkedin">Check-in OK</string>
+    <string name="attendee_subscribed_at_format">Inscrito em %1$s</string>
 </resources>

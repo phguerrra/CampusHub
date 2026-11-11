@@ -37,4 +37,32 @@ public class EventModelTest {
         assertEquals("Latitude nula deve retornar 0.0", 0.0, event.getLatitude(), 0.001);
         assertEquals("Longitude nula deve retornar 0.0", 0.0, event.getLongitude(), 0.001);
     }
+
+    @Test
+    public void eventModel_statusAndOwnership() {
+        Event event = new Event();
+        event.setCreatedBy("user_org_123");
+        event.setStatus(Event.STATUS_PUBLISHED);
+
+        assertEquals("user_org_123", event.getCreatedBy());
+        assertEquals(Event.STATUS_PUBLISHED, event.getStatus());
+        assertEquals(false, event.isClosed());
+
+        event.setStatus(Event.STATUS_CLOSED);
+        assertEquals(true, event.isClosed());
+    }
+
+    @Test
+    public void attendeeModel_gettersAndSetters() {
+        Timestamp now = Timestamp.now();
+        Attendee attendee = new Attendee("sub123", "user456", "Maria Silva", "maria@test.com", now, true, now);
+
+        assertEquals("sub123", attendee.getSubscriptionId());
+        assertEquals("user456", attendee.getUserId());
+        assertEquals("Maria Silva", attendee.getName());
+        assertEquals("maria@test.com", attendee.getEmail());
+        assertEquals(now, attendee.getSubscribedAt());
+        assertEquals(true, attendee.isCheckedIn());
+        assertEquals(now, attendee.getCheckedInAt());
+    }
 }
