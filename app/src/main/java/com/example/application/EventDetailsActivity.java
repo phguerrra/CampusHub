@@ -3,6 +3,7 @@ package com.example.application;
 import android.Manifest;
 import android.content.Intent;
 import android.content.pm.PackageManager;
+import android.content.res.ColorStateList;
 import android.graphics.Bitmap;
 import android.media.MediaRecorder;
 import android.net.Uri;
@@ -55,6 +56,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 
 public class EventDetailsActivity extends AppCompatActivity {
     private static final String TAG = "EventDetailsActivity";
@@ -114,6 +116,11 @@ public class EventDetailsActivity extends AppCompatActivity {
     private TextView commentsEmptyMessage;
     private RecyclerView commentsRecyclerView;
     private CommentAdapter commentAdapter;
+
+    private View organizerManagementCard;
+    private MaterialButton organizerCloseEventButton;
+    private TextView statusBadge;
+    private boolean isUserOrganizer = false;
 
     private FirebaseAuth auth;
     private FirebaseFirestore database;
@@ -322,6 +329,7 @@ public class EventDetailsActivity extends AppCompatActivity {
     private void bindViews() {
         nameText = findViewById(R.id.event_details_name);
         categoryText = findViewById(R.id.event_details_category);
+        statusBadge = findViewById(R.id.event_details_status_badge);
         dateTimeText = findViewById(R.id.event_details_date_time);
         locationText = findViewById(R.id.event_details_location);
         mapView = findViewById(R.id.map_view);
@@ -336,6 +344,21 @@ public class EventDetailsActivity extends AppCompatActivity {
         subscribeButton = findViewById(R.id.event_details_subscribe_button);
         favoriteButton = findViewById(R.id.event_details_favorite_button);
         subscribeProgress = findViewById(R.id.event_details_subscribe_progress);
+
+        organizerManagementCard = findViewById(R.id.organizer_management_card);
+        MaterialButton organizerViewAttendeesBtn = findViewById(R.id.organizer_view_attendees_button);
+        MaterialButton organizerEditEventBtn = findViewById(R.id.organizer_edit_event_button);
+        organizerCloseEventButton = findViewById(R.id.organizer_close_event_button);
+
+        if (organizerViewAttendeesBtn != null) {
+            organizerViewAttendeesBtn.setOnClickListener(v -> openAttendees());
+        }
+        if (organizerEditEventBtn != null) {
+            organizerEditEventBtn.setOnClickListener(v -> openEditEvent());
+        }
+        if (organizerCloseEventButton != null) {
+            organizerCloseEventButton.setOnClickListener(v -> confirmCloseEvent());
+        }
 
         ratingSummaryText = findViewById(R.id.event_details_rating_summary);
         ratingNoticeText = findViewById(R.id.event_details_rating_notice);
@@ -863,6 +886,7 @@ public class EventDetailsActivity extends AppCompatActivity {
                         event.setId(document.getId());
                         currentEvent = event;
                         showEvent(event);
+                        checkUserRoleAndPermissions();
                         checkSubscriptionStatus();
                         checkFavoriteStatus();
                         loadRatingsAndCalculateAverage();
@@ -928,6 +952,13 @@ public class EventDetailsActivity extends AppCompatActivity {
     private void updateSubscribeButtonUI() {
         setSubscribeLoading(false);
         if (currentEvent == null) {
+            return;
+        }
+
+        if (currentEvent.isClosed()) {
+            subscribeButton.setText(R.string.status_ended);
+            subscribeButton.setEnabled(false);
+            subscribeButton.setOnClickListener(null);
             return;
         }
 
@@ -1386,6 +1417,90 @@ public class EventDetailsActivity extends AppCompatActivity {
         retryButton.setVisibility(View.GONE);
     }
 
+    private void checkUserRoleAndPermissions() {
+        String uid = getCurrentUserId();
+        if (uid == null || database == null) {
+            updateOrganizerControlsUI();
+            return;
+        }
+        database.collection("users").document(uid).get().addOnSuccessListener(doc -> {
+            if (doc.exists()) {
+                User user = doc.toObject(User.class);
+                isUserOrganizer = user != null && user.isOrganizer();
+            } else {
+                isUserOrganizer = false;
+            }
+            updateOrganizerControlsUI();
+        }).addOnFailureListener(e -> {
+            isUserOrganizer = false;
+            updateOrganizerControlsUI();
+        });
+    }
+
+    private void updateOrganizerControlsUI() {
+        if (currentEvent == null) {
+            if (organizerManagementCard != null) organizerManagementCard.setVisibility(View.GONE);
+            return;
+        }
+
+        String currentUid = getCurrentUserId();
+        boolean isCreator = isUserOrganizer && Objects.equals(currentEvent.getCreatedBy(), currentUid);
+
+        if (organizerManagementCard != null) {
+            organizerManagementCard.setVisibility(isCreator ? View.VISIBLE : View.GONE);
+        }
+
+        if (organizerCloseEventButton != null) {
+            if (currentEvent.isClosed()) {
+                organizerCloseEventButton.setEnabled(false);
+                organizerCloseEventButton.setText(R.string.status_ended);
+            } else {
+                organizerCloseEventButton.setEnabled(true);
+                organizerCloseEventButton.setText(R.string.close_event);
+            }
+        }
+    }
+
+    private void openAttendees() {
+        if (currentEvent == null) return;
+        Intent intent = new Intent(this, AttendeesActivity.class);
+        intent.putExtra(EventsActivity.EXTRA_EVENT_ID, currentEvent.getId());
+        startActivity(intent);
+    }
+
+    private void openEditEvent() {
+        if (currentEvent == null) return;
+        Intent intent = new Intent(this, CreateEventActivity.class);
+        intent.putExtra(EventsActivity.EXTRA_EVENT_ID, currentEvent.getId());
+        startActivity(intent);
+    }
+
+    private void confirmCloseEvent() {
+        if (currentEvent == null) return;
+        new MaterialAlertDialogBuilder(this)
+                .setTitle(R.string.close_event_confirm_title)
+                .setMessage(R.string.close_event_confirm_message)
+                .setPositiveButton(R.string.close_event, (dialog, which) -> closeEvent())
+                .setNegativeButton(R.string.cancel, null)
+                .show();
+    }
+
+    private void closeEvent() {
+        if (database == null || eventId == null) return;
+        setSubscribeLoading(true);
+        database.collection("events").document(eventId)
+                .update("status", Event.STATUS_CLOSED)
+                .addOnSuccessListener(aVoid -> {
+                    setSubscribeLoading(false);
+                    Toast.makeText(this, R.string.event_closed_success, Toast.LENGTH_SHORT).show();
+                    loadEvent();
+                })
+                .addOnFailureListener(e -> {
+                    setSubscribeLoading(false);
+                    Toast.makeText(this, R.string.generic_error, Toast.LENGTH_SHORT).show();
+                });
+    }
+
     private void showEvent(Event event) {
         progress.setVisibility(View.GONE);
         errorText.setVisibility(View.GONE);
@@ -1400,6 +1515,18 @@ public class EventDetailsActivity extends AppCompatActivity {
                 categoryText.setVisibility(View.VISIBLE);
             } else {
                 categoryText.setVisibility(View.GONE);
+            }
+        }
+        if (statusBadge != null) {
+            if (event.isClosed()) {
+                statusBadge.setText(R.string.status_ended);
+                statusBadge.setBackgroundTintList(ColorStateList.valueOf(
+                        ContextCompat.getColor(this, R.color.badge_ended_bg)
+                ));
+                statusBadge.setTextColor(ContextCompat.getColor(this, R.color.badge_ended_text));
+                statusBadge.setVisibility(View.VISIBLE);
+            } else {
+                statusBadge.setVisibility(View.GONE);
             }
         }
         if (dateTimeText != null) {
@@ -1417,6 +1544,8 @@ public class EventDetailsActivity extends AppCompatActivity {
                     event.getAvailableSlots()));
         }
 
+        updateOrganizerControlsUI();
+        updateSubscribeButtonUI();
         setupMapForEvent(event);
     }
 

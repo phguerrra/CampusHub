@@ -25,6 +25,7 @@ import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.firestore.FieldValue;
 import com.google.firebase.firestore.FirebaseFirestore;
 import com.google.firebase.firestore.FirebaseFirestoreException;
+import com.google.firebase.firestore.SetOptions;
 
 import java.text.DateFormat;
 import java.text.SimpleDateFormat;
@@ -33,11 +34,13 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 public class CreateEventActivity extends AppCompatActivity {
     private static final String TAG = "CreateEventActivity";
+    private TextView titleText;
     private TextInputLayout nameLayout;
     private TextInputLayout categoryLayout;
     private TextInputLayout descriptionLayout;
@@ -62,6 +65,8 @@ public class CreateEventActivity extends AppCompatActivity {
     private FirebaseFirestore database;
     private Calendar selectedDate;
     private String selectedTime;
+    private String eventIdToEdit = null;
+    private String existingCreatedBy = null;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -78,6 +83,14 @@ public class CreateEventActivity extends AppCompatActivity {
         }
         auth = FirebaseAuth.getInstance();
         database = FirebaseFirestore.getInstance();
+
+        if (getIntent() != null && getIntent().hasExtra(EventsActivity.EXTRA_EVENT_ID)) {
+            eventIdToEdit = getIntent().getStringExtra(EventsActivity.EXTRA_EVENT_ID);
+            if (eventIdToEdit != null && !eventIdToEdit.trim().isEmpty()) {
+                titleText.setText(R.string.edit_event_title);
+                loadEventForEdit();
+            }
+        }
     }
 
     @Override
@@ -89,6 +102,7 @@ public class CreateEventActivity extends AppCompatActivity {
     }
 
     private void bindViews() {
+        titleText = findViewById(R.id.create_event_title_text);
         nameLayout = findViewById(R.id.create_event_name_layout);
         categoryLayout = findViewById(R.id.create_event_category_layout);
         descriptionLayout = findViewById(R.id.create_event_description_layout);
@@ -111,6 +125,57 @@ public class CreateEventActivity extends AppCompatActivity {
         progress = findViewById(R.id.create_event_progress);
     }
 
+    private void loadEventForEdit() {
+        if (database == null || eventIdToEdit == null) return;
+
+        setLoading(true);
+        database.collection("events")
+                .document(eventIdToEdit)
+                .get()
+                .addOnSuccessListener(document -> {
+                    setLoading(false);
+                    if (!document.exists()) {
+                        Toast.makeText(this, R.string.event_details_not_found, Toast.LENGTH_SHORT).show();
+                        finish();
+                        return;
+                    }
+
+                    Event event = document.toObject(Event.class);
+                    if (event != null) {
+                        existingCreatedBy = event.getCreatedBy();
+                        String currentUserId = auth.getCurrentUser() != null ? auth.getCurrentUser().getUid() : "";
+
+                        if (!Objects.equals(existingCreatedBy, currentUserId)) {
+                            Toast.makeText(this, R.string.organizer_only_edit, Toast.LENGTH_LONG).show();
+                            finish();
+                            return;
+                        }
+
+                        nameInput.setText(event.getName());
+                        categoryInput.setText(event.getCategory(), false);
+                        descriptionInput.setText(event.getDescription());
+                        locationInput.setText(event.getLocation());
+                        slotsInput.setText(String.format(Locale.getDefault(), "%d", event.getAvailableSlots()));
+
+                        if (event.getDate() != null) {
+                            selectedDate = Calendar.getInstance();
+                            selectedDate.setTime(event.getDate().toDate());
+                            DateFormat formatter = new SimpleDateFormat("dd/MM/yyyy", Locale.getDefault());
+                            dateInput.setText(formatter.format(selectedDate.getTime()));
+                        }
+
+                        if (event.getTime() != null) {
+                            selectedTime = event.getTime();
+                            timeInput.setText(selectedTime);
+                        }
+                    }
+                })
+                .addOnFailureListener(e -> {
+                    setLoading(false);
+                    showError(getString(R.string.event_details_load_error));
+                });
+    }
+
     private void setupCategoryDropdown() {
         String[] categories = new String[]{
                 getString(R.string.category_academic),
@@ -130,7 +195,7 @@ public class CreateEventActivity extends AppCompatActivity {
     private void setupActions() {
         dateInput.setOnClickListener(view -> showDatePicker());
         timeInput.setOnClickListener(view -> showTimePicker());
-        saveButton.setOnClickListener(view -> createEvent());
+        saveButton.setOnClickListener(view -> saveEvent());
         cancelButton.setOnClickListener(view -> finish());
     }
 
@@ -167,7 +232,7 @@ public class CreateEventActivity extends AppCompatActivity {
         ).show();
     }
 
-    private void createEvent() {
+    private void saveEvent() {
         if (auth == null || auth.getCurrentUser() == null || database == null) {
             openLogin();
             return;
@@ -281,21 +346,40 @@ public class CreateEventActivity extends AppCompatActivity {
                 event.put("latitude", finalLat);
                 event.put("longitude", finalLng);
                 event.put("availableSlots", availableSlots);
-                event.put("createdBy", auth.getCurrentUser().getUid());
-                event.put("createdAt", FieldValue.serverTimestamp());
+                event.put("maxCapacity", availableSlots);
 
-                database.collection("events")
-                        .add(event)
-                        .addOnSuccessListener(document -> {
-                            setLoading(false);
-                            Toast.makeText(CreateEventActivity.this, R.string.event_created, Toast.LENGTH_SHORT).show();
-                            finish();
-                        })
-                        .addOnFailureListener(exception -> {
-                            setLoading(false);
-                            Log.e(TAG, "Falha ao salvar evento no Firestore", exception);
-                            showError(firestoreErrorMessage(exception));
-                        });
+                if (eventIdToEdit != null) {
+                    database.collection("events")
+                            .document(eventIdToEdit)
+                            .set(event, SetOptions.merge())
+                            .addOnSuccessListener(aVoid -> {
+                                setLoading(false);
+                                Toast.makeText(CreateEventActivity.this, R.string.event_updated, Toast.LENGTH_SHORT).show();
+                                finish();
+                            })
+                            .addOnFailureListener(exception -> {
+                                setLoading(false);
+                                Log.e(TAG, "Falha ao atualizar evento no Firestore", exception);
+                                showError(firestoreErrorMessage(exception));
+                            });
+                } else {
+                    event.put("createdBy", auth.getCurrentUser().getUid());
+                    event.put("status", Event.STATUS_PUBLISHED);
+                    event.put("createdAt", FieldValue.serverTimestamp());
+
+                    database.collection("events")
+                            .add(event)
+                            .addOnSuccessListener(document -> {
+                                setLoading(false);
+                                Toast.makeText(CreateEventActivity.this, R.string.event_created, Toast.LENGTH_SHORT).show();
+                                finish();
+                            })
+                            .addOnFailureListener(exception -> {
+                                setLoading(false);
+                                Log.e(TAG, "Falha ao salvar evento no Firestore", exception);
+                                showError(firestoreErrorMessage(exception));
+                            });
+                }
             });
             executor.shutdown();
         });
