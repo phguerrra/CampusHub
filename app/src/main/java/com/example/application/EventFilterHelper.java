@@ -40,7 +40,7 @@ public class EventFilterHelper {
 
             // Status filter (Próximos vs Encerrados)
             if (!status.isEmpty()) {
-                boolean isEnded = event.getDate() != null && event.getDate().toDate().getTime() < nowTimestamp;
+                boolean isEnded = event.isClosed() || (event.getDate() != null && event.getDate().toDate().getTime() < nowTimestamp);
                 if (status.equalsIgnoreCase(upcomingLabel) && isEnded) {
                     continue;
                 }

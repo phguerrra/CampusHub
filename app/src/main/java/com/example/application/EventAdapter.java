@@ -109,7 +109,10 @@ public class EventAdapter extends RecyclerView.Adapter<EventAdapter.EventViewHol
         }
 
         private boolean isEventEnded(Event event) {
-            if (event.getDate() == null) {
+            if (event != null && event.isClosed()) {
+                return true;
+            }
+            if (event == null || event.getDate() == null) {
                 return false;
             }
             long now = System.currentTimeMillis();

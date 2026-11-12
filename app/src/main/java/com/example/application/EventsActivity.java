@@ -35,6 +35,7 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
+import java.util.Objects;
 
 public class EventsActivity extends AppCompatActivity {
     private static final String TAG = "EventsActivity";
@@ -47,7 +48,6 @@ public class EventsActivity extends AppCompatActivity {
     private EventAdapter eventAdapter;
     private TextView emptyMessage;
     private ProgressBar eventsProgress;
-    private TextInputEditText searchInput;
     private MaterialAutoCompleteTextView categoryFilterInput;
     private MaterialAutoCompleteTextView statusFilterInput;
     private MaterialButton createEventButton;
@@ -73,7 +73,7 @@ public class EventsActivity extends AppCompatActivity {
         RecyclerView eventsList = findViewById(R.id.events_list);
         emptyMessage = findViewById(R.id.events_empty_message);
         eventsProgress = findViewById(R.id.events_progress);
-        searchInput = findViewById(R.id.search_events_input);
+        TextInputEditText searchInput = findViewById(R.id.search_events_input);
         categoryFilterInput = findViewById(R.id.filter_category_input);
         statusFilterInput = findViewById(R.id.filter_status_input);
         BottomNavigationView bottomNavigation = findViewById(R.id.bottom_navigation);
@@ -148,7 +148,7 @@ public class EventsActivity extends AppCompatActivity {
         categoryFilterInput.setAdapter(categoryAdapter);
         categoryFilterInput.setOnItemClickListener((parent, view, position, id) -> {
             String selected = categories[position];
-            selectedCategoryFilter = selected.equals(getString(R.string.all_categories)) ? "" : selected;
+            selectedCategoryFilter = Objects.equals(selected, getString(R.string.all_categories)) ? "" : selected;
             applyFiltersAndSearch();
         });
 
@@ -165,7 +165,7 @@ public class EventsActivity extends AppCompatActivity {
         statusFilterInput.setAdapter(statusAdapter);
         statusFilterInput.setOnItemClickListener((parent, view, position, id) -> {
             String selected = statuses[position];
-            selectedStatusFilter = selected.equals(getString(R.string.all_statuses)) ? "" : selected;
+            selectedStatusFilter = Objects.equals(selected, getString(R.string.all_statuses)) ? "" : selected;
             applyFiltersAndSearch();
         });
     }
@@ -396,11 +396,11 @@ public class EventsActivity extends AppCompatActivity {
             }
 
             if (!selectedStatusFilter.isEmpty()) {
-                boolean isEnded = event.getDate() != null && event.getDate().toDate().getTime() < now;
-                if (selectedStatusFilter.equals(getString(R.string.status_upcoming)) && isEnded) {
+                boolean isEnded = event.isClosed() || (event.getDate() != null && event.getDate().toDate().getTime() < now);
+                if (Objects.equals(selectedStatusFilter, getString(R.string.status_upcoming)) && isEnded) {
                     continue;
                 }
-                if (selectedStatusFilter.equals(getString(R.string.status_ended)) && !isEnded) {
+                if (Objects.equals(selectedStatusFilter, getString(R.string.status_ended)) && !isEnded) {
                     continue;
                 }
             }

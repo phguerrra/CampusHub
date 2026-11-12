@@ -19,6 +19,7 @@ import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.Objects;
 
 public class AudioAdapter extends RecyclerView.Adapter<AudioAdapter.AudioViewHolder> {
     private static final String TAG = "AudioAdapter";
@@ -102,13 +103,13 @@ public class AudioAdapter extends RecyclerView.Adapter<AudioAdapter.AudioViewHol
 
             dateText.setText(formatDate(audio.getCreatedAt()));
 
-            boolean isPlaying = audio.getId() != null && audio.getId().equals(playingAudioId);
+            boolean isPlaying = Objects.equals(audio.getId(), playingAudioId);
             playButton.setImageResource(isPlaying ? R.drawable.ic_pause : R.drawable.ic_play_arrow);
             statusText.setText(isPlaying ? "Reproduzindo..." : "Toque para ouvir");
 
             playButton.setOnClickListener(v -> togglePlay(audio));
 
-            if (currentUserId != null && currentUserId.equals(audio.getUserId())) {
+            if (Objects.equals(audio.getUserId(), currentUserId)) {
                 deleteButton.setVisibility(View.VISIBLE);
                 deleteButton.setOnClickListener(v -> {
                     if (listener != null) {

@@ -20,6 +20,7 @@ import java.text.DateFormat;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 import java.util.Locale;
 
 public class PhotoAdapter extends RecyclerView.Adapter<PhotoAdapter.PhotoViewHolder> {
@@ -103,7 +104,7 @@ public class PhotoAdapter extends RecyclerView.Adapter<PhotoAdapter.PhotoViewHol
                 photoImage.setImageResource(R.drawable.ic_event_empty);
             }
 
-            if (currentUserId != null && currentUserId.equals(photo.getUserId())) {
+            if (Objects.equals(photo.getUserId(), currentUserId)) {
                 deleteButton.setVisibility(View.VISIBLE);
                 deleteButton.setOnClickListener(v -> {
                     if (listener != null) {

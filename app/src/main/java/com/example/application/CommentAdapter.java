@@ -16,6 +16,7 @@ import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.Objects;
 
 public class CommentAdapter extends RecyclerView.Adapter<CommentAdapter.CommentViewHolder> {
 
@@ -83,7 +84,7 @@ public class CommentAdapter extends RecyclerView.Adapter<CommentAdapter.CommentV
             commentText.setText(comment.getText());
             dateText.setText(formatDate(comment.getCreatedAt()));
 
-            boolean isOwner = currentUserId != null && currentUserId.equals(comment.getUserId());
+            boolean isOwner = Objects.equals(comment.getUserId(), currentUserId);
             editButton.setVisibility(isOwner ? View.VISIBLE : View.GONE);
             deleteButton.setVisibility(isOwner ? View.VISIBLE : View.GONE);
 

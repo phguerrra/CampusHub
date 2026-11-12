@@ -20,6 +20,7 @@ import java.text.DateFormat;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 import java.util.Locale;
 
 public class VideoAdapter extends RecyclerView.Adapter<VideoAdapter.VideoViewHolder> {
@@ -135,7 +136,7 @@ public class VideoAdapter extends RecyclerView.Adapter<VideoAdapter.VideoViewHol
                 return true;
             });
 
-            if (currentUserId != null && currentUserId.equals(video.getUserId())) {
+            if (Objects.equals(video.getUserId(), currentUserId)) {
                 deleteButton.setVisibility(View.VISIBLE);
                 deleteButton.setOnClickListener(v -> {
                     if (listener != null) {
