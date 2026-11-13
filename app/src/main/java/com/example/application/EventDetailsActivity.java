@@ -12,6 +12,7 @@ import android.util.Log;
 import android.view.View;
 import android.widget.EditText;
 import android.widget.ImageButton;
+import android.widget.ImageView;
 import android.widget.ProgressBar;
 import android.widget.TextView;
 import android.widget.Toast;
@@ -121,6 +122,9 @@ public class EventDetailsActivity extends AppCompatActivity {
     private MaterialButton organizerCloseEventButton;
     private TextView statusBadge;
     private boolean isUserOrganizer = false;
+
+    private View coverCard;
+    private ImageView coverImage;
 
     private FirebaseAuth auth;
     private FirebaseFirestore database;
@@ -327,6 +331,8 @@ public class EventDetailsActivity extends AppCompatActivity {
     }
 
     private void bindViews() {
+        coverCard = findViewById(R.id.event_details_cover_card);
+        coverImage = findViewById(R.id.event_details_cover_image);
         nameText = findViewById(R.id.event_details_name);
         categoryText = findViewById(R.id.event_details_category);
         statusBadge = findViewById(R.id.event_details_status_badge);
@@ -1506,6 +1512,25 @@ public class EventDetailsActivity extends AppCompatActivity {
         errorText.setVisibility(View.GONE);
         retryButton.setVisibility(View.GONE);
         detailsContent.setVisibility(View.VISIBLE);
+
+        if (coverCard != null && coverImage != null) {
+            if (event.getImageUrl() != null && !event.getImageUrl().trim().isEmpty()) {
+                String imgPath = event.getImageUrl().trim();
+                try {
+                    if (imgPath.startsWith("http://") || imgPath.startsWith("https://")) {
+                        // Reservado para URLs remotas
+                    } else {
+                        coverImage.setImageURI(Uri.fromFile(new File(imgPath)));
+                        coverCard.setVisibility(View.VISIBLE);
+                    }
+                } catch (Exception e) {
+                    Log.e(TAG, "Erro ao carregar foto de capa no evento", e);
+                    coverCard.setVisibility(View.GONE);
+                }
+            } else {
+                coverCard.setVisibility(View.GONE);
+            }
+        }
 
         if (nameText != null) nameText.setText(valueOrFallback(event.getName()));
         if (descriptionText != null) descriptionText.setText(valueOrFallback(event.getDescription()));

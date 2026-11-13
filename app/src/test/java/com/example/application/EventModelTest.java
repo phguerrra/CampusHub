@@ -43,9 +43,11 @@ public class EventModelTest {
         Event event = new Event();
         event.setCreatedBy("user_org_123");
         event.setStatus(Event.STATUS_PUBLISHED);
+        event.setImageUrl("/path/to/cover.jpg");
 
         assertEquals("user_org_123", event.getCreatedBy());
         assertEquals(Event.STATUS_PUBLISHED, event.getStatus());
+        assertEquals("/path/to/cover.jpg", event.getImageUrl());
         assertEquals(false, event.isClosed());
 
         event.setStatus(Event.STATUS_CLOSED);

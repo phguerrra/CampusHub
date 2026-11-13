@@ -14,6 +14,11 @@ import android.widget.ProgressBar;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import android.net.Uri;
+import android.widget.ImageView;
+
+import androidx.activity.result.ActivityResultLauncher;
+import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.appcompat.app.AppCompatActivity;
 
 import com.google.android.material.button.MaterialButton;
@@ -27,6 +32,9 @@ import com.google.firebase.firestore.FirebaseFirestore;
 import com.google.firebase.firestore.FirebaseFirestoreException;
 import com.google.firebase.firestore.SetOptions;
 
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.InputStream;
 import java.text.DateFormat;
 import java.text.SimpleDateFormat;
 import java.util.Calendar;
@@ -68,10 +76,29 @@ public class CreateEventActivity extends AppCompatActivity {
     private String eventIdToEdit = null;
     private String existingCreatedBy = null;
 
+    private ImageView imagePreview;
+    private MaterialButton selectImageButton;
+    private String selectedCoverPath = null;
+    private ActivityResultLauncher<String> pickImageLauncher;
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_create_event);
+
+        pickImageLauncher = registerForActivityResult(
+                new ActivityResultContracts.GetContent(),
+                uri -> {
+                    if (uri != null) {
+                        String savedPath = copyUriToLocalDirectory(uri, "covers", "cover_", ".jpg");
+                        if (savedPath != null) {
+                            selectedCoverPath = savedPath;
+                            displayCoverImage(savedPath);
+                        }
+                    }
+                }
+        );
+
         bindViews();
         setupCategoryDropdown();
         setupActions();
@@ -103,6 +130,9 @@ public class CreateEventActivity extends AppCompatActivity {
 
     private void bindViews() {
         titleText = findViewById(R.id.create_event_title_text);
+        imagePreview = findViewById(R.id.create_event_image_preview);
+        selectImageButton = findViewById(R.id.select_cover_image_button);
+
         nameLayout = findViewById(R.id.create_event_name_layout);
         categoryLayout = findViewById(R.id.create_event_category_layout);
         descriptionLayout = findViewById(R.id.create_event_description_layout);
@@ -123,6 +153,47 @@ public class CreateEventActivity extends AppCompatActivity {
         saveButton = findViewById(R.id.save_event_button);
         cancelButton = findViewById(R.id.cancel_create_event_button);
         progress = findViewById(R.id.create_event_progress);
+    }
+
+    private String copyUriToLocalDirectory(Uri uri, String subDir, String prefix, String extension) {
+        try {
+            File dir = new File(getFilesDir(), subDir);
+            if (!dir.exists()) {
+                dir.mkdirs();
+            }
+            File outFile = new File(dir, prefix + System.currentTimeMillis() + extension);
+            try (InputStream is = getContentResolver().openInputStream(uri);
+                 FileOutputStream fos = new FileOutputStream(outFile)) {
+                if (is == null) return null;
+                byte[] buffer = new byte[8192];
+                int read;
+                while ((read = is.read(buffer)) != -1) {
+                    fos.write(buffer, 0, read);
+                }
+                fos.flush();
+            }
+            return outFile.getAbsolutePath();
+        } catch (Exception e) {
+            Log.e(TAG, "Erro ao copiar imagem de capa local", e);
+            return null;
+        }
+    }
+
+    private void displayCoverImage(String path) {
+        if (path != null && imagePreview != null) {
+            try {
+                if (path.startsWith("http://") || path.startsWith("https://")) {
+                    // Reservado para URLs remotas
+                } else {
+                    imagePreview.setImageURI(Uri.fromFile(new File(path)));
+                    if (selectImageButton != null) {
+                        selectImageButton.setText(R.string.change_cover_image);
+                    }
+                }
+            } catch (Exception e) {
+                Log.e(TAG, "Erro ao exibir imagem de capa", e);
+            }
+        }
     }
 
     private void loadEventForEdit() {
@@ -168,6 +239,11 @@ public class CreateEventActivity extends AppCompatActivity {
                             selectedTime = event.getTime();
                             timeInput.setText(selectedTime);
                         }
+
+                        if (event.getImageUrl() != null && !event.getImageUrl().trim().isEmpty()) {
+                            selectedCoverPath = event.getImageUrl().trim();
+                            displayCoverImage(selectedCoverPath);
+                        }
                     }
                 })
                 .addOnFailureListener(e -> {
@@ -193,6 +269,9 @@ public class CreateEventActivity extends AppCompatActivity {
     }
 
     private void setupActions() {
+        if (selectImageButton != null) {
+            selectImageButton.setOnClickListener(v -> pickImageLauncher.launch("image/*"));
+        }
         dateInput.setOnClickListener(view -> showDatePicker());
         timeInput.setOnClickListener(view -> showTimePicker());
         saveButton.setOnClickListener(view -> saveEvent());
@@ -347,6 +426,9 @@ public class CreateEventActivity extends AppCompatActivity {
                 event.put("longitude", finalLng);
                 event.put("availableSlots", availableSlots);
                 event.put("maxCapacity", availableSlots);
+                if (selectedCoverPath != null && !selectedCoverPath.trim().isEmpty()) {
+                    event.put("imageUrl", selectedCoverPath.trim());
+                }
 
                 if (eventIdToEdit != null) {
                     database.collection("events")

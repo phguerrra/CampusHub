@@ -180,4 +180,8 @@
     <string name="attendee_status_subscribed">Inscrito</string>
     <string name="attendee_status_checkedin">Check-in OK</string>
     <string name="attendee_subscribed_at_format">Inscrito em %1$s</string>
+    <!-- Imagem de Capa do Evento -->
+    <string name="select_cover_image">Selecionar imagem de capa</string>
+    <string name="change_cover_image">Alterar imagem de capa</string>
+    <string name="cover_image_label">Imagem de Capa</string>
 </resources>

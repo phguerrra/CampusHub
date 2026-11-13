@@ -4,6 +4,7 @@ import android.content.res.ColorStateList;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
+import android.widget.ImageView;
 import android.widget.TextView;
 
 import androidx.annotation.NonNull;
@@ -57,6 +58,7 @@ public class EventAdapter extends RecyclerView.Adapter<EventAdapter.EventViewHol
     }
 
     static class EventViewHolder extends RecyclerView.ViewHolder {
+        private final ImageView coverImage;
         private final TextView categoryBadge;
         private final TextView statusBadge;
         private final TextView nameText;
@@ -67,6 +69,7 @@ public class EventAdapter extends RecyclerView.Adapter<EventAdapter.EventViewHol
 
         EventViewHolder(@NonNull View itemView) {
             super(itemView);
+            coverImage = itemView.findViewById(R.id.event_cover_image);
             categoryBadge = itemView.findViewById(R.id.event_category_badge);
             statusBadge = itemView.findViewById(R.id.event_status_badge);
             nameText = itemView.findViewById(R.id.event_name);
@@ -77,6 +80,24 @@ public class EventAdapter extends RecyclerView.Adapter<EventAdapter.EventViewHol
         }
 
         void bind(Event event) {
+            if (coverImage != null) {
+                if (event.getImageUrl() != null && !event.getImageUrl().trim().isEmpty()) {
+                    String path = event.getImageUrl().trim();
+                    try {
+                        if (path.startsWith("http://") || path.startsWith("https://")) {
+                            coverImage.setVisibility(View.GONE);
+                        } else {
+                            coverImage.setImageURI(android.net.Uri.fromFile(new java.io.File(path)));
+                            coverImage.setVisibility(View.VISIBLE);
+                        }
+                    } catch (Exception e) {
+                        coverImage.setVisibility(View.GONE);
+                    }
+                } else {
+                    coverImage.setVisibility(View.GONE);
+                }
+            }
+
             String category = event.getCategory() != null && !event.getCategory().trim().isEmpty()
                     ? event.getCategory().trim()
                     : "Geral";

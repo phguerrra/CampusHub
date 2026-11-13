@@ -19,6 +19,7 @@ public class Event {
     private Double longitude;
     private String createdBy;
     private String status;
+    private String imageUrl;
 
     public Event() {
         // Construtor vazio obrigatório para a conversão de documentos do Firestore.
@@ -153,5 +154,13 @@ public class Event {
 
     public boolean isClosed() {
         return STATUS_CLOSED.equalsIgnoreCase(getStatus());
+    }
+
+    public String getImageUrl() {
+        return imageUrl;
+    }
+
+    public void setImageUrl(String imageUrl) {
+        this.imageUrl = imageUrl;
     }
 }

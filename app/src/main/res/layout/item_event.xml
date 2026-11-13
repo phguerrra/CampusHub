@@ -20,6 +20,17 @@
         android:orientation="vertical"
         android:padding="16dp">
 
+        <ImageView
+            android:id="@+id/event_cover_image"
+            android:layout_width="match_parent"
+            android:layout_height="140dp"
+            android:layout_marginBottom="12dp"
+            android:contentDescription="@string/cover_image_label"
+            android:scaleType="centerCrop"
+            android:visibility="gone"
+            tools:src="@drawable/ic_image"
+            tools:visibility="visible" />
+
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"

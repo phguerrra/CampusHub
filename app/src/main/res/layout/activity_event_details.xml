@@ -61,6 +61,26 @@
             android:orientation="vertical"
             android:visibility="gone">
 
+            <com.google.android.material.card.MaterialCardView
+                android:id="@+id/event_details_cover_card"
+                android:layout_width="match_parent"
+                android:layout_height="200dp"
+                android:layout_marginBottom="16dp"
+                android:visibility="gone"
+                app:cardCornerRadius="16dp"
+                app:cardElevation="2dp"
+                app:strokeColor="@color/divider"
+                app:strokeWidth="1dp"
+                tools:visibility="visible">
+
+                <ImageView
+                    android:id="@+id/event_details_cover_image"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:contentDescription="@string/cover_image_label"
+                    android:scaleType="centerCrop" />
+            </com.google.android.material.card.MaterialCardView>
+
             <TextView
                 android:id="@+id/event_details_name"
                 android:layout_width="match_parent"
