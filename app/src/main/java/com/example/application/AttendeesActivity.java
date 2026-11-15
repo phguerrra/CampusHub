@@ -30,6 +30,7 @@ public class AttendeesActivity extends AppCompatActivity {
 
     private TextView countText;
     private TextView checkedinCountText;
+    private TextView waitlistCountText;
     private TextView emptyMessage;
     private ProgressBar progress;
     private AttendeeAdapter adapter;
@@ -52,6 +53,7 @@ public class AttendeesActivity extends AppCompatActivity {
         findViewById(R.id.attendees_back_button).setOnClickListener(v -> finish());
         countText = findViewById(R.id.attendees_count_text);
         checkedinCountText = findViewById(R.id.attendees_checkedin_count_text);
+        waitlistCountText = findViewById(R.id.attendees_waitlist_count_text);
         emptyMessage = findViewById(R.id.attendees_empty_message);
         progress = findViewById(R.id.attendees_progress);
 
@@ -68,6 +70,20 @@ public class AttendeesActivity extends AppCompatActivity {
 
         database = FirebaseFirestore.getInstance();
         loadAttendees();
+        loadWaitlistCount();
+    }
+
+    private void loadWaitlistCount() {
+        if (database == null || eventId == null || waitlistCountText == null) return;
+        database.collection("waitlist")
+                .whereEqualTo("eventId", eventId)
+                .whereEqualTo("status", "WAITING")
+                .get()
+                .addOnSuccessListener(snapshot -> {
+                    int count = snapshot != null ? snapshot.size() : 0;
+                    waitlistCountText.setText(String.format(Locale.getDefault(), "%d", count));
+                })
+                .addOnFailureListener(e -> waitlistCountText.setText("0"));
     }
 
     private void loadAttendees() {

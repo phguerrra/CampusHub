@@ -184,4 +184,14 @@
     <string name="select_cover_image">Selecionar imagem de capa</string>
     <string name="change_cover_image">Alterar imagem de capa</string>
     <string name="cover_image_label">Imagem de Capa</string>
+
+    <!-- Lista de Espera -->
+    <string name="join_waitlist">Entrar na lista de espera</string>
+    <string name="leave_waitlist">Sair da lista de espera</string>
+    <string name="on_waitlist_notice">Você está na lista de espera deste evento.</string>
+    <string name="waitlist_joined_success">Você entrou na lista de espera com sucesso!</string>
+    <string name="waitlist_left_success">Você saiu da lista de espera.</string>
+    <string name="waitlist_promoted_notice">Sua inscrição foi confirmada automaticamente pois uma vaga foi liberada!</string>
+    <string name="waitlist_label">Na Fila de Espera</string>
+    <string name="waitlist_error">Não foi possível atualizar seu status na lista de espera.</string>
 </resources>

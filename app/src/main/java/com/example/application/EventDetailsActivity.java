@@ -34,6 +34,7 @@ import com.google.firebase.Timestamp;
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.auth.FirebaseUser;
 import com.google.firebase.firestore.DocumentReference;
+import com.google.firebase.firestore.DocumentSnapshot;
 import com.google.firebase.firestore.FieldValue;
 import com.google.firebase.firestore.FirebaseFirestore;
 import com.google.firebase.firestore.FirebaseFirestoreException;
@@ -131,6 +132,7 @@ public class EventDetailsActivity extends AppCompatActivity {
     private String eventId;
     private Event currentEvent;
     private boolean isSubscribed = false;
+    private boolean isOnWaitlist = false;
     private boolean isFavorited = false;
     private float userExistingRating = 0f;
     private boolean hasUserRated = false;
@@ -894,6 +896,7 @@ public class EventDetailsActivity extends AppCompatActivity {
                         showEvent(event);
                         checkUserRoleAndPermissions();
                         checkSubscriptionStatus();
+                        checkWaitlistStatus();
                         checkFavoriteStatus();
                         loadRatingsAndCalculateAverage();
                         loadPhotos();
@@ -955,6 +958,29 @@ public class EventDetailsActivity extends AppCompatActivity {
                 });
     }
 
+    private void checkWaitlistStatus() {
+        String userId = getCurrentUserId();
+        if (userId == null || database == null || eventId == null) {
+            isOnWaitlist = false;
+            updateSubscribeButtonUI();
+            return;
+        }
+
+        String waitlistDocId = eventId + "_" + userId;
+        database.collection("waitlist")
+                .document(waitlistDocId)
+                .get()
+                .addOnSuccessListener(document -> {
+                    isOnWaitlist = document.exists() && "WAITING".equals(document.getString("status"));
+                    updateSubscribeButtonUI();
+                })
+                .addOnFailureListener(exception -> {
+                    Log.e(TAG, "Erro ao checar status na lista de espera", exception);
+                    isOnWaitlist = false;
+                    updateSubscribeButtonUI();
+                });
+    }
+
     private void updateSubscribeButtonUI() {
         setSubscribeLoading(false);
         if (currentEvent == null) {
@@ -978,11 +1004,75 @@ public class EventDetailsActivity extends AppCompatActivity {
                 subscribeButton.setEnabled(true);
                 subscribeButton.setOnClickListener(v -> subscribeToEvent());
             } else {
-                subscribeButton.setText(R.string.no_slots_available);
-                subscribeButton.setEnabled(false);
-                subscribeButton.setOnClickListener(null);
+                if (isOnWaitlist) {
+                    subscribeButton.setText(R.string.leave_waitlist);
+                    subscribeButton.setEnabled(true);
+                    subscribeButton.setOnClickListener(v -> leaveWaitlist());
+                } else {
+                    subscribeButton.setText(R.string.join_waitlist);
+                    subscribeButton.setEnabled(true);
+                    subscribeButton.setOnClickListener(v -> joinWaitlist());
+                }
             }
         }
+    }
+
+    private void joinWaitlist() {
+        String userId = getCurrentUserId();
+        if (userId == null || database == null) {
+            openLogin();
+            return;
+        }
+
+        setSubscribeLoading(true);
+        String waitlistDocId = eventId + "_" + userId;
+
+        Map<String, Object> waitData = new HashMap<>();
+        waitData.put("eventId", eventId);
+        waitData.put("userId", userId);
+        waitData.put("status", "WAITING");
+        waitData.put("joinedAt", FieldValue.serverTimestamp());
+
+        database.collection("waitlist")
+                .document(waitlistDocId)
+                .set(waitData)
+                .addOnSuccessListener(aVoid -> {
+                    setSubscribeLoading(false);
+                    isOnWaitlist = true;
+                    Toast.makeText(this, R.string.waitlist_joined_success, Toast.LENGTH_SHORT).show();
+                    updateSubscribeButtonUI();
+                })
+                .addOnFailureListener(e -> {
+                    setSubscribeLoading(false);
+                    Log.e(TAG, "Erro ao entrar na lista de espera", e);
+                    Toast.makeText(this, R.string.waitlist_error, Toast.LENGTH_SHORT).show();
+                });
+    }
+
+    private void leaveWaitlist() {
+        String userId = getCurrentUserId();
+        if (userId == null || database == null) {
+            openLogin();
+            return;
+        }
+
+        setSubscribeLoading(true);
+        String waitlistDocId = eventId + "_" + userId;
+
+        database.collection("waitlist")
+                .document(waitlistDocId)
+                .delete()
+                .addOnSuccessListener(aVoid -> {
+                    setSubscribeLoading(false);
+                    isOnWaitlist = false;
+                    Toast.makeText(this, R.string.waitlist_left_success, Toast.LENGTH_SHORT).show();
+                    updateSubscribeButtonUI();
+                })
+                .addOnFailureListener(e -> {
+                    setSubscribeLoading(false);
+                    Log.e(TAG, "Erro ao sair da lista de espera", e);
+                    Toast.makeText(this, R.string.waitlist_error, Toast.LENGTH_SHORT).show();
+                });
     }
 
     private void updateFavoriteButtonUI() {
@@ -1102,15 +1192,28 @@ public class EventDetailsActivity extends AppCompatActivity {
 
         subRef.delete()
                 .addOnSuccessListener(aVoid -> {
-                    eventRef.update("availableSlots", FieldValue.increment(1))
-                            .addOnSuccessListener(aVoid2 -> {
-                                Toast.makeText(this, R.string.unsubscribe_success, Toast.LENGTH_SHORT).show();
-                                loadEvent();
+                    database.collection("waitlist")
+                            .whereEqualTo("eventId", eventId)
+                            .whereEqualTo("status", "WAITING")
+                            .orderBy("joinedAt", Query.Direction.ASCENDING)
+                            .limit(1)
+                            .get()
+                            .addOnSuccessListener(querySnapshot -> {
+                                if (querySnapshot != null && !querySnapshot.isEmpty()) {
+                                    DocumentSnapshot waitDoc = querySnapshot.getDocuments().get(0);
+                                    String nextUserId = waitDoc.getString("userId");
+                                    String waitDocId = waitDoc.getId();
+
+                                    if (nextUserId != null && !nextUserId.isEmpty()) {
+                                        promoteWaitlistUserToSubscriber(nextUserId, waitDocId);
+                                        return;
+                                    }
+                                }
+                                incrementAvailableSlotsAndRefresh(eventRef);
                             })
-                            .addOnFailureListener(exception -> {
-                                Log.e(TAG, "Erro ao incrementar vagas", exception);
-                                Toast.makeText(this, R.string.unsubscribe_success, Toast.LENGTH_SHORT).show();
-                                loadEvent();
+                            .addOnFailureListener(e -> {
+                                Log.e(TAG, "Erro ao consultar fila de espera no cancelamento", e);
+                                incrementAvailableSlotsAndRefresh(eventRef);
                             });
                 })
                 .addOnFailureListener(exception -> {
@@ -1118,6 +1221,41 @@ public class EventDetailsActivity extends AppCompatActivity {
                     Log.e(TAG, "Erro ao cancelar inscrição no Firestore", exception);
                     String errorMsg = handleSubscribeError(exception);
                     Toast.makeText(this, errorMsg, Toast.LENGTH_LONG).show();
+                });
+    }
+
+    private void promoteWaitlistUserToSubscriber(String nextUserId, String waitDocId) {
+        String newSubDocId = eventId + "_" + nextUserId;
+        DocumentReference newSubRef = database.collection("subscriptions").document(newSubDocId);
+
+        Map<String, Object> subData = new HashMap<>();
+        subData.put("eventId", eventId);
+        subData.put("userId", nextUserId);
+        subData.put("subscribedAt", FieldValue.serverTimestamp());
+
+        newSubRef.set(subData)
+                .addOnSuccessListener(aVoid -> {
+                    database.collection("waitlist").document(waitDocId).delete();
+                    Toast.makeText(this, R.string.unsubscribe_success, Toast.LENGTH_SHORT).show();
+                    loadEvent();
+                })
+                .addOnFailureListener(e -> {
+                    Log.e(TAG, "Erro ao promover usuário da lista de espera", e);
+                    Toast.makeText(this, R.string.unsubscribe_success, Toast.LENGTH_SHORT).show();
+                    loadEvent();
+                });
+    }
+
+    private void incrementAvailableSlotsAndRefresh(DocumentReference eventRef) {
+        eventRef.update("availableSlots", FieldValue.increment(1))
+                .addOnSuccessListener(aVoid -> {
+                    Toast.makeText(this, R.string.unsubscribe_success, Toast.LENGTH_SHORT).show();
+                    loadEvent();
+                })
+                .addOnFailureListener(exception -> {
+                    Log.e(TAG, "Erro ao incrementar vagas", exception);
+                    Toast.makeText(this, R.string.unsubscribe_success, Toast.LENGTH_SHORT).show();
+                    loadEvent();
                 });
     }
 
