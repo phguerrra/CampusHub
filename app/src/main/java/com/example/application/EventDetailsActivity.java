@@ -132,8 +132,13 @@ public class EventDetailsActivity extends AppCompatActivity {
     private String eventId;
     private Event currentEvent;
     private boolean isSubscribed = false;
+    private boolean isCheckedIn = false;
     private boolean isOnWaitlist = false;
     private boolean isFavorited = false;
+
+    private View qrCard;
+    private ImageView qrImageView;
+    private TextView qrCheckinBadge;
     private float userExistingRating = 0f;
     private boolean hasUserRated = false;
     private int selectedRatingValue = 0;
@@ -335,6 +340,9 @@ public class EventDetailsActivity extends AppCompatActivity {
     private void bindViews() {
         coverCard = findViewById(R.id.event_details_cover_card);
         coverImage = findViewById(R.id.event_details_cover_image);
+        qrCard = findViewById(R.id.event_details_qr_card);
+        qrImageView = findViewById(R.id.event_details_qr_image);
+        qrCheckinBadge = findViewById(R.id.event_details_qr_checkin_badge);
         nameText = findViewById(R.id.event_details_name);
         categoryText = findViewById(R.id.event_details_category);
         statusBadge = findViewById(R.id.event_details_status_badge);
@@ -926,15 +934,72 @@ public class EventDetailsActivity extends AppCompatActivity {
                 .get()
                 .addOnSuccessListener(document -> {
                     isSubscribed = document.exists();
+                    if (document.exists()) {
+                        Boolean checkedIn = document.getBoolean("checkedIn");
+                        isCheckedIn = checkedIn != null && checkedIn;
+                        loadAndDisplayQrCode(subscriptionDocId);
+                    } else {
+                        isCheckedIn = false;
+                        if (qrCard != null) qrCard.setVisibility(View.GONE);
+                    }
                     updateSubscribeButtonUI();
                     updateUserRatingUI();
                 })
                 .addOnFailureListener(exception -> {
                     Log.e(TAG, "Erro ao checar status de inscrição", exception);
                     isSubscribed = false;
+                    isCheckedIn = false;
+                    if (qrCard != null) qrCard.setVisibility(View.GONE);
                     updateSubscribeButtonUI();
                     updateUserRatingUI();
                 });
+    }
+
+    private void loadAndDisplayQrCode(String subscriptionDocId) {
+        if (!isSubscribed || qrCard == null || qrImageView == null) {
+            if (qrCard != null) qrCard.setVisibility(View.GONE);
+            return;
+        }
+
+        String userId = getCurrentUserId();
+        if (userId == null || eventId == null) {
+            qrCard.setVisibility(View.GONE);
+            return;
+        }
+
+        String qrContent = String.format(Locale.US,
+                "{\"subscriptionId\":\"%s\",\"eventId\":\"%s\",\"userId\":\"%s\"}",
+                subscriptionDocId, eventId, userId
+        );
+
+        try {
+            Bitmap bitmap = QrCodeGenerator.generateQrCode(qrContent, 500);
+            if (bitmap != null) {
+                qrImageView.setImageBitmap(bitmap);
+                qrCard.setVisibility(View.VISIBLE);
+
+                if (qrCheckinBadge != null) {
+                    if (isCheckedIn) {
+                        qrCheckinBadge.setText(R.string.qr_code_checked_in);
+                        qrCheckinBadge.setBackgroundTintList(ColorStateList.valueOf(
+                                ContextCompat.getColor(this, R.color.badge_upcoming_bg)
+                        ));
+                        qrCheckinBadge.setTextColor(ContextCompat.getColor(this, R.color.badge_upcoming_text));
+                    } else {
+                        qrCheckinBadge.setText(R.string.qr_code_pending);
+                        qrCheckinBadge.setBackgroundTintList(ColorStateList.valueOf(
+                                ContextCompat.getColor(this, R.color.badge_category_bg)
+                        ));
+                        qrCheckinBadge.setTextColor(ContextCompat.getColor(this, R.color.badge_category_text));
+                    }
+                }
+            } else {
+                qrCard.setVisibility(View.GONE);
+            }
+        } catch (Exception e) {
+            Log.e(TAG, "Erro ao gerar QR Code para inscrição", e);
+            qrCard.setVisibility(View.GONE);
+        }
     }
 
     private void checkFavoriteStatus() {

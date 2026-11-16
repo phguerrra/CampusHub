@@ -194,4 +194,11 @@
     <string name="waitlist_promoted_notice">Sua inscrição foi confirmada automaticamente pois uma vaga foi liberada!</string>
     <string name="waitlist_label">Na Fila de Espera</string>
     <string name="waitlist_error">Não foi possível atualizar seu status na lista de espera.</string>
+
+    <!-- QR Code e Check-in -->
+    <string name="qr_code_card_title">Seu Ingresso para o Evento</string>
+    <string name="qr_code_card_subtitle">Apresente este QR Code na entrada para o organizador registrar sua presença.</string>
+    <string name="qr_code_checked_in">Check-in Realizado</string>
+    <string name="qr_code_pending">Validação Pendente</string>
+    <string name="qr_code_generating_error">Não foi possível gerar o QR Code da inscrição.</string>
 </resources>
