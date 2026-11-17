@@ -201,4 +201,15 @@
     <string name="qr_code_checked_in">Check-in Realizado</string>
     <string name="qr_code_pending">Validação Pendente</string>
     <string name="qr_code_generating_error">Não foi possível gerar o QR Code da inscrição.</string>
+
+    <string name="scan_qr_code">Validar Check-in (QR Code)</string>
+    <string name="camera_permission_required_scan">Permissão de câmera é necessária para escanear o QR Code.</string>
+    <string name="qr_scan_invalid_event">Este QR Code pertence a outro evento!</string>
+    <string name="qr_scan_invalid_data">QR Code inválido ou com dados corrompidos.</string>
+    <string name="qr_scan_already_checked_in">Atenção: O check-in desta inscrição já foi realizado anteriormente!</string>
+    <string name="qr_scan_already_checked_in_title">Check-in Já Realizado</string>
+    <string name="qr_scan_success_title">Check-in Confirmado!</string>
+    <string name="qr_scan_success_msg">Presença registrada com sucesso!</string>
+    <string name="qr_scan_not_found">Inscrição não encontrada no banco de dados.</string>
+    <string name="qr_scan_error">Não foi possível processar o check-in.</string>
 </resources>

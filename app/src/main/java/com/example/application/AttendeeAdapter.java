@@ -63,8 +63,18 @@ public class AttendeeAdapter extends RecyclerView.Adapter<AttendeeAdapter.Attend
         }
 
         public void bind(Attendee attendee) {
-            nameText.setText(attendee.getName() != null ? attendee.getName() : "Aluno");
-            emailText.setText(attendee.getEmail() != null ? attendee.getEmail() : "");
+            String rawName = attendee.getName();
+            String name = (rawName == null || rawName.trim().isEmpty() || "Carregando...".equals(rawName.trim()))
+                    ? "Aluno"
+                    : rawName.trim();
+            nameText.setText(name);
+
+            if (attendee.getEmail() != null && !attendee.getEmail().trim().isEmpty()) {
+                emailText.setText(attendee.getEmail().trim());
+                emailText.setVisibility(View.VISIBLE);
+            } else {
+                emailText.setVisibility(View.GONE);
+            }
 
             if (attendee.getSubscribedAt() != null) {
                 DateFormat formatter = new SimpleDateFormat("dd/MM/yyyy 'às' HH:mm", Locale.getDefault());

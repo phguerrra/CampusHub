@@ -43,6 +43,7 @@ dependencies {
     implementation("com.google.firebase:firebase-analytics")
     implementation("org.maplibre.gl:android-sdk:11.8.0")
     implementation("com.google.zxing:core:3.5.4")
+    implementation("com.journeyapps:zxing-android-embedded:4.3.0")
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.espresso.core)
     androidTestImplementation(libs.androidx.junit)

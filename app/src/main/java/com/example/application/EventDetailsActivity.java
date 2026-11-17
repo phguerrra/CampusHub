@@ -41,6 +41,11 @@ import com.google.firebase.firestore.FirebaseFirestoreException;
 import com.google.firebase.firestore.Query;
 import com.google.firebase.firestore.QueryDocumentSnapshot;
 
+import org.json.JSONObject;
+import com.journeyapps.barcodescanner.CaptureActivity;
+import com.journeyapps.barcodescanner.ScanContract;
+import com.journeyapps.barcodescanner.ScanOptions;
+
 import org.maplibre.android.MapLibre;
 import org.maplibre.android.annotations.MarkerOptions;
 import org.maplibre.android.camera.CameraUpdateFactory;
@@ -121,8 +126,12 @@ public class EventDetailsActivity extends AppCompatActivity {
 
     private View organizerManagementCard;
     private MaterialButton organizerCloseEventButton;
+    private MaterialButton organizerScanQrButton;
     private TextView statusBadge;
     private boolean isUserOrganizer = false;
+
+    private ActivityResultLauncher<ScanOptions> barcodeLauncher;
+    private ActivityResultLauncher<String> cameraPermissionLauncher;
 
     private View coverCard;
     private ImageView coverImage;
@@ -237,6 +246,26 @@ public class EventDetailsActivity extends AppCompatActivity {
                         if (savedPath != null) {
                             publishVideoToFirestore(savedPath);
                         }
+                    }
+                }
+        );
+
+        barcodeLauncher = registerForActivityResult(
+                new ScanContract(),
+                result -> {
+                    if (result != null && result.getContents() != null) {
+                        processScannedQrCode(result.getContents());
+                    }
+                }
+        );
+
+        cameraPermissionLauncher = registerForActivityResult(
+                new ActivityResultContracts.RequestPermission(),
+                isGranted -> {
+                    if (isGranted) {
+                        launchQrScanner();
+                    } else {
+                        Toast.makeText(this, R.string.camera_permission_required_scan, Toast.LENGTH_SHORT).show();
                     }
                 }
         );
@@ -362,10 +391,14 @@ public class EventDetailsActivity extends AppCompatActivity {
         subscribeProgress = findViewById(R.id.event_details_subscribe_progress);
 
         organizerManagementCard = findViewById(R.id.organizer_management_card);
+        organizerScanQrButton = findViewById(R.id.organizer_scan_qr_button);
         MaterialButton organizerViewAttendeesBtn = findViewById(R.id.organizer_view_attendees_button);
         MaterialButton organizerEditEventBtn = findViewById(R.id.organizer_edit_event_button);
         organizerCloseEventButton = findViewById(R.id.organizer_close_event_button);
 
+        if (organizerScanQrButton != null) {
+            organizerScanQrButton.setOnClickListener(v -> requestCameraAndScanQr());
+        }
         if (organizerViewAttendeesBtn != null) {
             organizerViewAttendeesBtn.setOnClickListener(v -> openAttendees());
         }
@@ -1559,6 +1592,104 @@ public class EventDetailsActivity extends AppCompatActivity {
                     Log.e(TAG, "Erro ao atualizar comentário", e);
                     Toast.makeText(this, R.string.generic_error, Toast.LENGTH_SHORT).show();
                 });
+    }
+
+    private void requestCameraAndScanQr() {
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED) {
+            launchQrScanner();
+        } else {
+            cameraPermissionLauncher.launch(Manifest.permission.CAMERA);
+        }
+    }
+
+    private void launchQrScanner() {
+        ScanOptions options = new ScanOptions();
+        options.setPrompt(getString(R.string.qr_code_card_subtitle));
+        options.setBeepEnabled(true);
+        options.setOrientationLocked(true);
+        options.setCaptureActivity(CaptureActivity.class);
+        barcodeLauncher.launch(options);
+    }
+
+    private void processScannedQrCode(String rawContents) {
+        if (rawContents == null || rawContents.trim().isEmpty() || database == null) {
+            showScanResultDialog(getString(R.string.qr_scan_invalid_data), false);
+            return;
+        }
+
+        try {
+            JSONObject json = new JSONObject(rawContents.trim());
+            String scannedSubId = json.optString("subscriptionId");
+            String scannedEventId = json.optString("eventId");
+            String scannedUserId = json.optString("userId");
+
+            if (scannedSubId.isEmpty() || scannedEventId.isEmpty() || scannedUserId.isEmpty()) {
+                showScanResultDialog(getString(R.string.qr_scan_invalid_data), false);
+                return;
+            }
+
+            if (!scannedEventId.equals(eventId)) {
+                showScanResultDialog(getString(R.string.qr_scan_invalid_event), false);
+                return;
+            }
+
+            database.collection("subscriptions")
+                    .document(scannedSubId)
+                    .get()
+                    .addOnSuccessListener(doc -> {
+                        if (!doc.exists()) {
+                            showScanResultDialog(getString(R.string.qr_scan_not_found), false);
+                            return;
+                        }
+
+                        Boolean checkedIn = doc.getBoolean("checkedIn");
+                        if (checkedIn != null && checkedIn) {
+                            showScanResultDialog(getString(R.string.qr_scan_already_checked_in), false);
+                        } else {
+                            Map<String, Object> update = new HashMap<>();
+                            update.put("checkedIn", true);
+                            update.put("checkedInAt", FieldValue.serverTimestamp());
+
+                            database.collection("subscriptions")
+                                    .document(scannedSubId)
+                                    .update(update)
+                                    .addOnSuccessListener(aVoid -> {
+                                        database.collection("users").document(scannedUserId).get()
+                                                .addOnSuccessListener(userDoc -> {
+                                                    String userName = userDoc.exists() ? userDoc.getString("name") : "Aluno";
+                                                    if (userName == null || userName.isEmpty()) userName = "Aluno";
+                                                    showScanResultDialog(getString(R.string.qr_scan_success_msg) + "\nAluno: " + userName, true);
+                                                })
+                                                .addOnFailureListener(e -> {
+                                                    showScanResultDialog(getString(R.string.qr_scan_success_msg), true);
+                                                });
+                                    })
+                                    .addOnFailureListener(e -> {
+                                        Log.e(TAG, "Erro ao atualizar check-in", e);
+                                        showScanResultDialog(getString(R.string.qr_scan_error), false);
+                                    });
+                        }
+                    })
+                    .addOnFailureListener(e -> {
+                        Log.e(TAG, "Erro ao consultar inscrição", e);
+                        showScanResultDialog(getString(R.string.qr_scan_error), false);
+                    });
+        } catch (Exception e) {
+            Log.e(TAG, "Erro ao interpretar QR Code", e);
+            showScanResultDialog(getString(R.string.qr_scan_invalid_data), false);
+        }
+    }
+
+    private void showScanResultDialog(String message, boolean success) {
+        new MaterialAlertDialogBuilder(this)
+                .setTitle(success ? R.string.qr_scan_success_title : R.string.qr_scan_already_checked_in_title)
+                .setMessage(message)
+                .setPositiveButton(android.R.string.ok, (dialog, which) -> {
+                    if (success) {
+                        loadEvent();
+                    }
+                })
+                .show();
     }
 
     private void showDeleteCommentDialog(Comment comment) {

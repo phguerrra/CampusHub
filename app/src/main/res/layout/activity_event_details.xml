@@ -319,7 +319,16 @@
                         android:orientation="vertical">
 
                         <com.google.android.material.button.MaterialButton
+                            android:id="@+id/organizer_scan_qr_button"
+                            android:layout_width="match_parent"
+                            android:layout_height="48dp"
+                            android:layout_marginBottom="8dp"
+                            android:text="@string/scan_qr_code"
+                            app:icon="@drawable/ic_camera" />
+
+                        <com.google.android.material.button.MaterialButton
                             android:id="@+id/organizer_view_attendees_button"
+                            style="@style/Widget.MaterialComponents.Button.OutlinedButton"
                             android:layout_width="match_parent"
                             android:layout_height="48dp"
                             android:text="@string/view_attendees"

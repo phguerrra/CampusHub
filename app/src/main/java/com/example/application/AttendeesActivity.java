@@ -96,8 +96,9 @@ public class AttendeesActivity extends AppCompatActivity {
                 .whereEqualTo("eventId", eventId)
                 .get()
                 .addOnSuccessListener(querySnapshot -> {
+                    progress.setVisibility(View.GONE);
+
                     if (querySnapshot == null || querySnapshot.isEmpty()) {
-                        progress.setVisibility(View.GONE);
                         countText.setText("0");
                         checkedinCountText.setText("0");
                         emptyMessage.setVisibility(View.VISIBLE);
@@ -118,19 +119,19 @@ public class AttendeesActivity extends AppCompatActivity {
                         boolean isCheckedIn = checkedIn != null && checkedIn;
 
                         Attendee attendee = new Attendee(
-                                subId, userId, "Carregando...", "",
+                                subId, userId, "Aluno", "",
                                 subscribedAt, isCheckedIn, checkedInAt
                         );
                         tempAttendees.add(attendee);
 
-                        if (userId != null && !userId.isEmpty()) {
-                            userTasks.add(database.collection("users").document(userId).get());
+                        if (userId != null && !userId.trim().isEmpty()) {
+                            userTasks.add(database.collection("users").document(userId.trim()).get());
                         }
                     }
 
+                    displayAttendees(tempAttendees);
+
                     if (userTasks.isEmpty()) {
-                        progress.setVisibility(View.GONE);
-                        displayAttendees(tempAttendees);
                         return;
                     }
 
@@ -145,15 +146,17 @@ public class AttendeesActivity extends AppCompatActivity {
 
                                     for (Attendee att : tempAttendees) {
                                         if (Objects.equals(uid, att.getUserId())) {
-                                            if (name != null && !name.isEmpty()) att.setName(name);
-                                            if (email != null && !email.isEmpty()) att.setEmail(email);
+                                            if (name != null && !name.trim().isEmpty()) {
+                                                att.setName(name.trim());
+                                            }
+                                            if (email != null && !email.trim().isEmpty()) {
+                                                att.setEmail(email.trim());
+                                            }
                                         }
                                     }
                                 }
                             }
                         }
-
-                        progress.setVisibility(View.GONE);
                         displayAttendees(tempAttendees);
                     });
                 })
